@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Torn Gym Ratios
 // @namespace    http://tampermonkey.net/
-// @version      1.0.17
+// @version      1.0.18
 // @description  Gym training helper with target percentages and current distribution display
 // @author       Mistborn [3037268]
 // @match        https://www.torn.com/gym.php*
@@ -325,7 +325,7 @@
                         cursor: pointer;
                         font-size: 12px;
                         margin-right: 5px;
-                        ${!isTornPDA() ? '-webkit-transform: translateZ(0); transform: translateZ(0); -webkit-backface-visibility: hidden; backface-visibility: hidden;' : 'outline: none; border: 1px solid transparent; box-sizing: border-box;'}
+                        ${!isTornPDA() ? '-webkit-transform: translateZ(0); transform: translateZ(0); -webkit-backface-visibility: hidden; backface-visibility: hidden;' : 'outline: none; -webkit-appearance: none; appearance: none; border: none; position: relative; overflow: hidden;'}
                     ">?</button>
                     <button id="gym-collapse-btn" style="
                         background: ${colors.neutral};
@@ -336,7 +336,7 @@
                         cursor: pointer;
                         font-size: 12px;
                         margin-right: 5px;
-                        ${!isTornPDA() ? '-webkit-transform: translateZ(0); transform: translateZ(0); -webkit-backface-visibility: hidden; backface-visibility: hidden;' : 'outline: none; border: 1px solid transparent; box-sizing: border-box;'}
+                        ${!isTornPDA() ? '-webkit-transform: translateZ(0); transform: translateZ(0); -webkit-backface-visibility: hidden; backface-visibility: hidden;' : 'outline: none; -webkit-appearance: none; appearance: none; border: none; position: relative; overflow: hidden;'}
                     ">−</button>
                     <button id="gym-config-btn" style="
                         background: ${colors.primary};
@@ -346,7 +346,7 @@
                         border-radius: 3px;
                         cursor: pointer;
                         font-size: 12px;
-                        ${!isTornPDA() ? '-webkit-transform: translateZ(0); transform: translateZ(0); -webkit-backface-visibility: hidden; backface-visibility: hidden;' : 'outline: none; border: 1px solid transparent; box-sizing: border-box;'}
+                        ${!isTornPDA() ? '-webkit-transform: translateZ(0); transform: translateZ(0); -webkit-backface-visibility: hidden; backface-visibility: hidden;' : 'outline: none; -webkit-appearance: none; appearance: none; border: none; position: relative; overflow: hidden;'}
                     ">Config</button>
                 </div>
             </div>
