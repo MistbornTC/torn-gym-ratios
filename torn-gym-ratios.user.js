@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Torn Gym Ratios
 // @namespace    http://tampermonkey.net/
-// @version      1.0.18
+// @version      1.0.19
 // @description  Gym training helper with target percentages and current distribution display
 // @author       Mistborn [3037268]
 // @match        https://www.torn.com/gym.php*
@@ -547,9 +547,15 @@
             collapseBtn.setAttribute('aria-label', 'Expand gym helper');
             // Also hide config panel if open
             if (configPanel) configPanel.style.display = 'none';
-            // Reduce bottom padding when collapsed
+            // Reduce bottom padding when collapsed - works for both PDA and regular
             const mainPanel = document.getElementById('gym-helper-display');
-            if (mainPanel) mainPanel.style.paddingBottom = '5px';
+            if (mainPanel) {
+                mainPanel.style.paddingBottom = '5px';
+                // Force style update in PDA
+                if (isTornPDA()) {
+                    mainPanel.style.marginBottom = '5px';
+                }
+            }
         } else {
             // Expand
             statsDisplay.style.display = 'grid';
@@ -557,7 +563,13 @@
             collapseBtn.setAttribute('aria-label', 'Collapse gym helper');
             // Restore normal padding when expanded
             const mainPanel = document.getElementById('gym-helper-display');
-            if (mainPanel) mainPanel.style.paddingBottom = '15px';
+            if (mainPanel) {
+                mainPanel.style.paddingBottom = '15px';
+                // Restore normal margin in PDA
+                if (isTornPDA()) {
+                    mainPanel.style.marginBottom = '10px';
+                }
+            }
             // Update stats when expanding
             updateStatsDisplay();
         }
