@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Torn Gym Ratios
 // @namespace    http://tampermonkey.net/
-// @version      1.0.19
+// @version      1.0.20
 // @description  Gym training helper with target percentages and current distribution display
 // @author       Mistborn [3037268]
 // @match        https://www.torn.com/gym.php*
@@ -532,6 +532,7 @@
         const statsDisplay = document.getElementById('gym-stats-display');
         const collapseBtn = document.getElementById('gym-collapse-btn');
         const configPanel = document.getElementById('gym-config-panel');
+        const mainPanel = document.getElementById('gym-helper-display');
         
         if (!statsDisplay || !collapseBtn) return;
         
@@ -547,13 +548,18 @@
             collapseBtn.setAttribute('aria-label', 'Expand gym helper');
             // Also hide config panel if open
             if (configPanel) configPanel.style.display = 'none';
-            // Reduce bottom padding when collapsed - works for both PDA and regular
-            const mainPanel = document.getElementById('gym-helper-display');
+            
+            // Enhanced PDA collapse spacing fix
             if (mainPanel) {
                 mainPanel.style.paddingBottom = '5px';
-                // Force style update in PDA
                 if (isTornPDA()) {
+                    // More aggressive PDA-specific fixes - NO height changes
                     mainPanel.style.marginBottom = '5px';
+                    // Force layout recalculation
+                    mainPanel.offsetHeight;
+                    // Additional PDA-specific style fixes
+                    mainPanel.style.setProperty('padding-bottom', '5px', 'important');
+                    mainPanel.style.setProperty('margin-bottom', '5px', 'important');
                 }
             }
         } else {
@@ -561,12 +567,19 @@
             statsDisplay.style.display = 'grid';
             collapseBtn.textContent = '−';
             collapseBtn.setAttribute('aria-label', 'Collapse gym helper');
-            // Restore normal padding when expanded
-            const mainPanel = document.getElementById('gym-helper-display');
+            
+            // Restore normal spacing when expanded
             if (mainPanel) {
                 mainPanel.style.paddingBottom = '15px';
-                // Restore normal margin in PDA
                 if (isTornPDA()) {
+                    mainPanel.style.marginBottom = '10px';
+                    // Force layout recalculation
+                    mainPanel.offsetHeight;
+                    // Remove important flags for normal state
+                    mainPanel.style.removeProperty('padding-bottom');
+                    mainPanel.style.removeProperty('margin-bottom');
+                    // Re-apply normal values
+                    mainPanel.style.paddingBottom = '15px';
                     mainPanel.style.marginBottom = '10px';
                 }
             }
