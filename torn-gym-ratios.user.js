@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Torn Gym Ratios
 // @namespace    http://tampermonkey.net/
-// @version      1.0.0
+// @version      1.0.1
 // @description  Gym training helper with target percentages and current distribution display
 // @author       Mistborn [3037268]
 // @match        https://www.torn.com/gym.php*
@@ -44,12 +44,12 @@
         // Helper function to extract value from container
         function extractValue(container) {
             if (!container) return 0;
-
+            
             // Try multiple possible selectors for the value element
-            const valueEl = container.querySelector('[class*="propertyValue___"]') ||
+            const valueEl = container.querySelector('[class*="propertyValue___"]') || 
                            container.querySelector('.propertyValue') ||
                            container.querySelector('[data-value]');
-
+            
             if (valueEl) {
                 const text = valueEl.textContent || valueEl.getAttribute('data-value') || '0';
                 return parseInt(text.replace(/,/g, '')) || 0;
@@ -99,18 +99,18 @@
     // Detect user's theme preference
     function getTheme() {
         const body = document.body;
-        const isDarkMode = body.classList.contains('dark-mode') ||
+        const isDarkMode = body.classList.contains('dark-mode') || 
                           body.classList.contains('dark') ||
                           body.style.background.includes('#191919') ||
                           getComputedStyle(body).backgroundColor === 'rgb(25, 25, 25)';
-
+        
         return isDarkMode ? 'dark' : 'light';
     }
 
     // Get theme-appropriate colors
     function getThemeColors() {
         const theme = getTheme();
-
+        
         if (theme === 'dark') {
             return {
                 panelBg: '#2a2a2a',
@@ -173,17 +173,17 @@
             currentTheme = newTheme;
             const colors = getThemeColors();
             const mainPanel = document.getElementById('gym-helper-display');
-
+            
             if (mainPanel) {
                 mainPanel.style.background = colors.panelBg;
                 mainPanel.style.border = `1px solid ${colors.panelBorder}`;
                 mainPanel.style.color = colors.textPrimary;
                 mainPanel.style.boxShadow = colors.statBoxShadow;
-
+                
                 // Update title color
                 const title = mainPanel.querySelector('h3');
                 if (title) title.style.color = colors.textPrimary;
-
+                
                 // Update button colors
                 const helpBtn = document.getElementById('gym-help-btn');
                 const collapseBtn = document.getElementById('gym-collapse-btn');
@@ -191,28 +191,28 @@
                 if (helpBtn) helpBtn.style.background = colors.neutral;
                 if (collapseBtn) collapseBtn.style.background = colors.neutral;
                 if (configBtn) configBtn.style.background = colors.primary;
-
+                
                 // Update help tooltip colors
                 const tooltip = document.getElementById('gym-help-tooltip');
                 if (tooltip) {
                     tooltip.style.background = colors.statBoxBg;
                     tooltip.style.border = `1px solid ${colors.statBoxBorder}`;
                     tooltip.style.boxShadow = colors.statBoxShadow;
-
+                    
                     // Update tooltip text colors and bars
                     const tooltipElements = tooltip.querySelectorAll('div');
                     tooltipElements.forEach(el => {
                         el.style.color = colors.textPrimary;
                     });
-
+                    
                     // Update the colored bars in tooltip
                     const bars = tooltip.querySelectorAll('span[style*="font-size: 14px"]');
                     if (bars.length >= 3) {
                         bars[0].style.color = colors.success; // Green bar
-                        bars[1].style.color = colors.warning; // Yellow/Orange bar
+                        bars[1].style.color = colors.warning; // Yellow/Orange bar  
                         bars[2].style.color = colors.danger;  // Red bar
                     }
-
+                    
                     // Update the Yellow/Orange text based on theme - fix the HTML structure
                     const middleDiv = tooltip.children[2]; // The second color guide div
                     if (middleDiv) {
@@ -221,32 +221,32 @@
                         middleDiv.innerHTML = `<span style="color: ${colors.warning}; font-weight: bold; font-size: 14px;">▏</span> <span style="font-weight: bold;">${newColorName}:</span> Above target (focus on other stats)`;
                     }
                 }
-
+                
                 // Update config panel colors
                 const configPanel = document.getElementById('gym-config-panel');
                 if (configPanel) {
                     configPanel.style.background = colors.configBg;
                     configPanel.style.border = `1px solid ${colors.configBorder}`;
-
+                    
                     // Update config panel text colors
                     const configTitle = configPanel.querySelector('h4');
                     if (configTitle) {
                         configTitle.style.color = colors.textPrimary;
                         configTitle.style.fontSize = '16px'; // Match main heading
                     }
-
+                    
                     const configLabels = configPanel.querySelectorAll('label');
                     configLabels.forEach(label => {
                         label.style.color = colors.textSecondary;
                     });
-
+                    
                     const configInputs = configPanel.querySelectorAll('input');
                     configInputs.forEach(input => {
                         input.style.background = colors.inputBg;
                         input.style.border = `1px solid ${colors.inputBorder}`;
                         input.style.color = colors.textPrimary;
                     });
-
+                    
                     const totalSpan = configPanel.querySelector('#total-percentage');
                     if (totalSpan) {
                         // Keep the existing color logic but update if it's using default colors
@@ -254,7 +254,7 @@
                             totalSpan.style.color = colors.textSecondary;
                         }
                     }
-
+                    
                     const saveBtn = configPanel.querySelector('#save-targets');
                     const cancelBtn = configPanel.querySelector('#cancel-config');
                     if (saveBtn) saveBtn.style.background = colors.success;
@@ -267,7 +267,7 @@
     // Create the main display panel
     function createDisplayPanel() {
         const colors = getThemeColors();
-
+        
         const panel = document.createElement('div');
         panel.id = 'gym-helper-display';
         panel.style.cssText = `
@@ -371,6 +371,10 @@
                         gap: 6px !important;
                         font-size: 11px !important;
                     }
+                    #gym-helper-display {
+                        padding-left: 0 !important;
+                        padding-right: 0 !important;
+                    }
                     #gym-config-panel, #gym-help-tooltip {
                         left: 0 !important;
                         right: 0 !important;
@@ -391,7 +395,7 @@
     // Create the configuration panel
     function createConfigPanel() {
         const colors = getThemeColors();
-
+        
         const configPanel = document.createElement('div');
         configPanel.id = 'gym-config-panel';
         configPanel.style.cssText = `
@@ -493,14 +497,14 @@
         const statsDisplay = document.getElementById('gym-stats-display');
         const collapseBtn = document.getElementById('gym-collapse-btn');
         const configPanel = document.getElementById('gym-config-panel');
-
+        
         if (!statsDisplay || !collapseBtn) return;
-
+        
         const collapsed = isCollapsed();
         const newState = !collapsed;
-
+        
         setCollapsed(newState);
-
+        
         if (newState) {
             // Collapse
             statsDisplay.style.display = 'none';
@@ -529,7 +533,7 @@
         if (isCollapsed()) {
             const statsDisplay = document.getElementById('gym-stats-display');
             const collapseBtn = document.getElementById('gym-collapse-btn');
-
+            
             if (statsDisplay && collapseBtn) {
                 statsDisplay.style.display = 'none';
                 collapseBtn.textContent = '+';
@@ -545,7 +549,7 @@
     function updateStatsDisplay() {
         // Check for theme changes (piggyback on existing refresh)
         updateMainContainerTheme();
-
+        
         const stats = getCurrentStats();
         const currentDist = calculateCurrentDistribution(stats);
         const targets = loadTargets();
@@ -553,7 +557,7 @@
         const displayDiv = document.getElementById('gym-stats-display');
 
         if (!displayDiv) return;
-
+        
         // Don't update content if collapsed
         if (isCollapsed()) return;
 
@@ -599,16 +603,16 @@
         const defense = parseFloat(document.getElementById('target-defense').value) || 0;
         const speed = parseFloat(document.getElementById('target-speed').value) || 0;
         const dexterity = parseFloat(document.getElementById('target-dexterity').value) || 0;
-
+        
         const total = strength + defense + speed + dexterity;
         const totalSpan = document.getElementById('total-percentage');
         const colors = getThemeColors();
-
+        
         if (totalSpan) {
             totalSpan.textContent = `Total: ${total.toFixed(1)}%`;
             totalSpan.style.color = Math.abs(total - 100) <= 0.1 ? colors.success : colors.danger;
         }
-
+        
         const saveBtn = document.getElementById('save-targets');
         if (saveBtn) {
             saveBtn.disabled = Math.abs(total - 100) > 0.1;
@@ -623,7 +627,7 @@
             // Create and insert the display panel
             const displayPanel = createDisplayPanel();
             const configPanel = createConfigPanel();
-
+            
             displayPanel.appendChild(configPanel);
             delimiter.parentNode.insertBefore(displayPanel, delimiter.nextSibling);
 
@@ -668,7 +672,7 @@
                     speed: parseFloat(document.getElementById('target-speed').value),
                     dexterity: parseFloat(document.getElementById('target-dexterity').value)
                 };
-
+                
                 saveTargets(targets);
                 updateStatsDisplay();
                 document.getElementById('gym-config-panel').style.display = 'none';
@@ -691,11 +695,11 @@
                 const tooltip = document.getElementById('gym-help-tooltip');
                 const configBtn = document.getElementById('gym-config-btn');
                 const configPanel = document.getElementById('gym-config-panel');
-
+                
                 if (!helpBtn.contains(e.target) && !tooltip.contains(e.target)) {
                     tooltip.style.display = 'none';
                 }
-
+                
                 if (!configBtn.contains(e.target) && !configPanel.contains(e.target)) {
                     configPanel.style.display = 'none';
                 }
