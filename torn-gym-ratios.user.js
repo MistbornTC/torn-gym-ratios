@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Torn Gym Ratios
 // @namespace    http://tampermonkey.net/
-// @version      1.0.11
+// @version      1.0.12
 // @description  Gym training helper with target percentages and current distribution display
 // @author       Mistborn [3037268]
 // @match        https://www.torn.com/gym.php*
@@ -16,6 +16,48 @@
 (function() {
     'use strict';
 
+    // Error protection system
+    let errorCount = 0;
+    let maxErrors = 5;
+    let errorCooldown = 60000; // 1 minute
+    let lastErrorTime = 0;
+
+    function safeExecute(func, context = 'unknown') {
+        try {
+            if (errorCount >= maxErrors) {
+                const now = Date.now();
+                if (now - lastErrorTime < errorCooldown) {
+                    console.log(`🛑 Gym Helper: Too many errors (${errorCount}), cooling down for ${Math.round((errorCooldown - (now - lastErrorTime)) / 1000)}s`);
+                    return null;
+                }
+                // Reset after cooldown
+                errorCount = 0;
+            }
+            
+            return func();
+        } catch (error) {
+            errorCount++;
+            lastErrorTime = Date.now();
+            console.error(`🚨 Gym Helper Error in ${context}:`, error.message);
+            
+            if (errorCount >= maxErrors) {
+                console.log(`🛑 Gym Helper: Entering cooldown mode after ${maxErrors} errors`);
+                // Clear intervals to stop auto-refresh
+                const intervals = window.gymHelperIntervals || [];
+                intervals.forEach(clearInterval);
+                window.gymHelperIntervals = [];
+            }
+            return null;
+        }
+    }
+        const element = document.querySelector(selector);
+        if (element) {
+            callback(element);
+        } else {
+            setTimeout(() => waitForElement(selector, callback), 100);
+        }
+    }
+
     // Wait for the page to fully load
     function waitForElement(selector, callback) {
         const element = document.querySelector(selector);
@@ -26,43 +68,45 @@
         }
     }
 
-    // Extract current stat values
+    // Extract current stat values with error protection
     function getCurrentStats() {
-        const stats = {
-            strength: 0,
-            defense: 0,
-            speed: 0,
-            dexterity: 0
-        };
+        return safeExecute(() => {
+            const stats = {
+                strength: 0,
+                defense: 0,
+                speed: 0,
+                dexterity: 0
+            };
 
-        // Find stat containers using more robust selectors
-        const strengthContainer = document.querySelector('li[class*="strength___"]');
-        const defenseContainer = document.querySelector('li[class*="defense___"]');
-        const speedContainer = document.querySelector('li[class*="speed___"]');
-        const dexterityContainer = document.querySelector('li[class*="dexterity___"]');
+            // Find stat containers using more robust selectors
+            const strengthContainer = document.querySelector('li[class*="strength___"]');
+            const defenseContainer = document.querySelector('li[class*="defense___"]');
+            const speedContainer = document.querySelector('li[class*="speed___"]');
+            const dexterityContainer = document.querySelector('li[class*="dexterity___"]');
 
-        // Helper function to extract value from container
-        function extractValue(container) {
-            if (!container) return 0;
-            
-            // Try multiple possible selectors for the value element
-            const valueEl = container.querySelector('[class*="propertyValue___"]') || 
-                           container.querySelector('.propertyValue') ||
-                           container.querySelector('[data-value]');
-            
-            if (valueEl) {
-                const text = valueEl.textContent || valueEl.getAttribute('data-value') || '0';
-                return parseInt(text.replace(/,/g, '')) || 0;
+            // Helper function to extract value from container
+            function extractValue(container) {
+                if (!container) return 0;
+                
+                // Try multiple possible selectors for the value element
+                const valueEl = container.querySelector('[class*="propertyValue___"]') || 
+                               container.querySelector('.propertyValue') ||
+                               container.querySelector('[data-value]');
+                
+                if (valueEl) {
+                    const text = valueEl.textContent || valueEl.getAttribute('data-value') || '0';
+                    return parseInt(text.replace(/,/g, '')) || 0;
+                }
+                return 0;
             }
-            return 0;
-        }
 
-        stats.strength = extractValue(strengthContainer);
-        stats.defense = extractValue(defenseContainer);
-        stats.speed = extractValue(speedContainer);
-        stats.dexterity = extractValue(dexterityContainer);
+            stats.strength = extractValue(strengthContainer);
+            stats.defense = extractValue(defenseContainer);
+            stats.speed = extractValue(speedContainer);
+            stats.dexterity = extractValue(dexterityContainer);
 
-        return stats;
+            return stats;
+        }, 'getCurrentStats') || { strength: 0, defense: 0, speed: 0, dexterity: 0 };
     }
 
     // Calculate current distribution percentages
@@ -689,6 +733,14 @@
 
     // Initialize the script
     function init() {
+        console.log('🔍 Gym Helper: Script starting...');
+        
+        // Simple test - just show we're running
+        const testDiv = document.createElement('div');
+        testDiv.innerHTML = 'SCRIPT IS RUNNING - DEBUG VERSION';
+        testDiv.style.cssText = 'background: red; color: white; padding: 10px; position: fixed; top: 0; left: 0; z-index: 99999;';
+        document.body.appendChild(testDiv);
+        
         // Wait for the page structure to be ready
         waitForElement('.page-head-delimiter', (delimiter) => {
             // Create and insert the display panel
@@ -755,8 +807,14 @@
             // Initial total percentage update
             updateTotalPercentage();
 
-            // Auto-refresh stats display every 5 seconds
-            setInterval(updateStatsDisplay, 5000);
+            // Auto-refresh stats display every 5 seconds with error protection
+            const refreshInterval = setInterval(() => {
+                safeExecute(() => updateStatsDisplay(), 'auto-refresh');
+            }, 5000);
+            
+            // Store interval for cleanup if needed
+            window.gymHelperIntervals = window.gymHelperIntervals || [];
+            window.gymHelperIntervals.push(refreshInterval);
 
             // Close panels when clicking outside
             document.addEventListener('click', (e) => {
