@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Torn Gym Ratios
 // @namespace    http://tampermonkey.net/
-// @version      1.0.7
+// @version      1.0.8
 // @description  Gym training helper with target percentages and current distribution display
 // @author       Mistborn [3037268]
 // @match        https://www.torn.com/gym.php*
@@ -185,7 +185,7 @@
                 mainPanel.style.boxShadow = colors.statBoxShadow;
                 
                 // Update title color
-                const title = mainPanel.querySelector('h3');
+                const title = mainPanel.querySelector('#gym-header-clickable');
                 if (title) title.style.color = colors.textPrimary;
                 
                 // Update button colors
@@ -288,7 +288,12 @@
 
         panel.innerHTML = `
             <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px;">
-                <h3 style="margin: 0; color: ${colors.textPrimary}; font-size: 16px;">Gym Ratios</h3>
+                <h3 id="gym-header-clickable" style="
+                    margin: 0; 
+                    color: ${colors.textPrimary}; 
+                    font-size: 16px;
+                    user-select: none;
+                ">Gym Ratios</h3>
                 <div>
                     <button id="gym-help-btn" style="
                         background: ${colors.neutral};
@@ -299,6 +304,7 @@
                         cursor: pointer;
                         font-size: 12px;
                         margin-right: 5px;
+                        transform: translateZ(0);
                     ">?</button>
                     <button id="gym-collapse-btn" style="
                         background: ${colors.neutral};
@@ -309,6 +315,7 @@
                         cursor: pointer;
                         font-size: 12px;
                         margin-right: 5px;
+                        transform: translateZ(0);
                     ">−</button>
                     <button id="gym-config-btn" style="
                         background: ${colors.primary};
@@ -318,6 +325,7 @@
                         border-radius: 3px;
                         cursor: pointer;
                         font-size: 12px;
+                        transform: translateZ(0);
                     ">Config</button>
                 </div>
             </div>
@@ -653,6 +661,8 @@
                 if (tooltip.style.display === 'block') configPanel.style.display = 'none';
             });
 
+            // Add header click to toggle collapse
+            document.getElementById('gym-header-clickable').addEventListener('click', toggleCollapsed);
             document.getElementById('gym-collapse-btn').addEventListener('click', toggleCollapsed);
 
             document.getElementById('gym-config-btn').addEventListener('click', () => {
