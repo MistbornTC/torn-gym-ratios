@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Torn Gym Ratios
 // @namespace    http://tampermonkey.net/
-// @version      1.0.5
+// @version      1.0.6
 // @description  Gym training helper with target percentages and current distribution display
 // @author       Mistborn [3037268]
 // @match        https://www.torn.com/gym.php*
@@ -373,6 +373,8 @@
                     }
                     #gym-helper-display {
                         margin-left: -5px !important;
+                        transform: translateZ(0) !important;
+                        backface-visibility: hidden !important;
                     }
                     #gym-config-panel, #gym-help-tooltip {
                         left: 0 !important;
@@ -529,27 +531,22 @@
 
     // Apply saved collapse state
     function applySavedCollapseState() {
-        // On mobile, default to expanded to avoid stuck collapsed state
-        const isMobile = window.innerWidth <= 768;
-        if (isMobile && isCollapsed()) {
-            // Force expand on mobile if collapsed
-            setCollapsed(false);
-            return;
-        }
-        
-        if (isCollapsed()) {
-            const statsDisplay = document.getElementById('gym-stats-display');
-            const collapseBtn = document.getElementById('gym-collapse-btn');
-            
-            if (statsDisplay && collapseBtn) {
-                statsDisplay.style.display = 'none';
-                collapseBtn.textContent = '+';
-                collapseBtn.setAttribute('aria-label', 'Expand gym helper');
-                // Also apply the reduced padding for saved collapsed state
-                const mainPanel = document.getElementById('gym-helper-display');
-                if (mainPanel) mainPanel.style.paddingBottom = '5px';
+        // Add a minimal delay to ensure DOM is ready
+        setTimeout(() => {
+            if (isCollapsed()) {
+                const statsDisplay = document.getElementById('gym-stats-display');
+                const collapseBtn = document.getElementById('gym-collapse-btn');
+                
+                if (statsDisplay && collapseBtn) {
+                    statsDisplay.style.display = 'none';
+                    collapseBtn.textContent = '+';
+                    collapseBtn.setAttribute('aria-label', 'Expand gym helper');
+                    // Also apply the reduced padding for saved collapsed state
+                    const mainPanel = document.getElementById('gym-helper-display');
+                    if (mainPanel) mainPanel.style.paddingBottom = '5px';
+                }
             }
-        }
+        }, 50);
     }
 
     // Update the stats display
