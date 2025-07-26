@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Torn Gym Ratios
 // @namespace    http://tampermonkey.net/
-// @version      1.0.0
+// @version      1.0.2
 // @description  Gym training helper with target percentages and current distribution display
 // @author       Mistborn [3037268]
 // @match        https://www.torn.com/gym.php*
