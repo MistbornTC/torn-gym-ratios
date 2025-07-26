@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Torn Gym Ratios
 // @namespace    http://tampermonkey.net/
-// @version      1.0.13
+// @version      1.0.14
 // @description  Gym training helper with target percentages and current distribution display
 // @author       Mistborn [3037268]
 // @match        https://www.torn.com/gym.php*
@@ -154,8 +154,15 @@
         }
     }
 
-    // Load/save collapse state - separate mobile and desktop states
-    function isCollapsed() {
+    // Detect if running in TornPDA
+    function isTornPDA() {
+        return !!(
+            navigator.userAgent.includes('com.manuito.tornpda') ||
+            window.flutter_inappwebview ||
+            window.__PDA_platformReadyPromise ||
+            window.PDA_httpGet
+        );
+    }
         const isMobile = window.innerWidth <= 768;
         const key = isMobile ? 'gym_helper_collapsed_mobile' : 'gym_helper_collapsed_desktop';
         return GM_getValue(key, false);
@@ -304,7 +311,10 @@
                         cursor: pointer;
                         font-size: 12px;
                         margin-right: 5px;
+                        -webkit-transform: translateZ(0);
                         transform: translateZ(0);
+                        -webkit-backface-visibility: hidden;
+                        backface-visibility: hidden;
                     ">?</button>
                     <button id="gym-collapse-btn" style="
                         background: ${colors.neutral};
@@ -315,7 +325,10 @@
                         cursor: pointer;
                         font-size: 12px;
                         margin-right: 5px;
+                        -webkit-transform: translateZ(0);
                         transform: translateZ(0);
+                        -webkit-backface-visibility: hidden;
+                        backface-visibility: hidden;
                     ">−</button>
                     <button id="gym-config-btn" style="
                         background: ${colors.primary};
@@ -325,15 +338,18 @@
                         border-radius: 3px;
                         cursor: pointer;
                         font-size: 12px;
+                        -webkit-transform: translateZ(0);
                         transform: translateZ(0);
+                        -webkit-backface-visibility: hidden;
+                        backface-visibility: hidden;
                     ">Config</button>
                 </div>
             </div>
             <div id="gym-help-tooltip" style="
                 position: absolute;
                 top: 100%;
-                right: 0;
                 left: 0;
+                right: 0;
                 background: ${colors.statBoxBg};
                 border: 1px solid ${colors.statBoxBorder};
                 border-radius: 5px;
@@ -544,6 +560,11 @@
 
     // Apply saved collapse state
     function applySavedCollapseState() {
+        // In TornPDA, always start expanded (no memory)
+        if (isTornPDA()) {
+            return; // Always start expanded in PDA
+        }
+        
         // Use separate storage for mobile vs desktop to avoid conflicts
         if (isCollapsed()) {
             setTimeout(() => {
@@ -669,13 +690,16 @@
                 if (isCollapsed()) {
                     toggleCollapsed();
                     setTimeout(() => {
-                        document.getElementById('gym-config-panel').style.display = 'block';
+                        const panel = document.getElementById('gym-config-panel');
+                        if (panel) panel.style.display = 'block';
                     }, 100);
                 } else {
                     const panel = document.getElementById('gym-config-panel');
-                    panel.style.display = panel.style.display === 'none' ? 'block' : 'none';
-                    const tooltip = document.getElementById('gym-help-tooltip');
-                    if (panel.style.display === 'block') tooltip.style.display = 'none';
+                    if (panel) {
+                        panel.style.display = panel.style.display === 'none' ? 'block' : 'none';
+                        const tooltip = document.getElementById('gym-help-tooltip');
+                        if (panel.style.display === 'block') tooltip.style.display = 'none';
+                    }
                 }
             });
 
