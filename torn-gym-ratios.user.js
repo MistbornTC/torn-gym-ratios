@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Torn Gym Ratios
 // @namespace    http://tampermonkey.net/
-// @version      1.0.15
+// @version      1.0.16
 // @description  Gym training helper with target percentages and current distribution display
 // @author       Mistborn [3037268]
 // @match        https://www.torn.com/gym.php*
@@ -325,10 +325,7 @@
                         cursor: pointer;
                         font-size: 12px;
                         margin-right: 5px;
-                        -webkit-transform: translateZ(0);
-                        transform: translateZ(0);
-                        -webkit-backface-visibility: hidden;
-                        backface-visibility: hidden;
+                        ${!isTornPDA() ? '-webkit-transform: translateZ(0); transform: translateZ(0); -webkit-backface-visibility: hidden; backface-visibility: hidden;' : ''}
                     ">?</button>
                     <button id="gym-collapse-btn" style="
                         background: ${colors.neutral};
@@ -339,10 +336,7 @@
                         cursor: pointer;
                         font-size: 12px;
                         margin-right: 5px;
-                        -webkit-transform: translateZ(0);
-                        transform: translateZ(0);
-                        -webkit-backface-visibility: hidden;
-                        backface-visibility: hidden;
+                        ${!isTornPDA() ? '-webkit-transform: translateZ(0); transform: translateZ(0); -webkit-backface-visibility: hidden; backface-visibility: hidden;' : ''}
                     ">−</button>
                     <button id="gym-config-btn" style="
                         background: ${colors.primary};
@@ -352,10 +346,7 @@
                         border-radius: 3px;
                         cursor: pointer;
                         font-size: 12px;
-                        -webkit-transform: translateZ(0);
-                        transform: translateZ(0);
-                        -webkit-backface-visibility: hidden;
-                        backface-visibility: hidden;
+                        ${!isTornPDA() ? '-webkit-transform: translateZ(0); transform: translateZ(0); -webkit-backface-visibility: hidden; backface-visibility: hidden;' : ''}
                     ">Config</button>
                 </div>
             </div>
