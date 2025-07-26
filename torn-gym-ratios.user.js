@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Torn Gym Ratios
 // @namespace    http://tampermonkey.net/
-// @version      1.0.9
+// @version      1.0.10
 // @description  Gym training helper with target percentages and current distribution display
 // @author       Mistborn [3037268]
 // @match        https://www.torn.com/gym.php*
@@ -172,12 +172,14 @@
         // Check for common PDA/app indicators
         return !!(
             window.navigator.userAgent.includes('TornPDA') ||
+            window.navigator.userAgent.includes('Flutter') ||
             window.navigator.userAgent.includes('wv') || // WebView indicator
             window.cordova || // Cordova/PhoneGap
             window.PhoneGap || 
             document.URL.indexOf('http://') === -1 && document.URL.indexOf('https://') === -1 || // file:// protocol
             window.webkit?.messageHandlers || // iOS WebView
-            window.Android // Android WebView
+            window.Android || // Android WebView
+            window.flutter_inappwebview // Flutter InAppWebView
         );
     }
 
@@ -534,6 +536,26 @@
         
         if (!statsDisplay || !collapseBtn) return;
         
+        // In TornPDA, don't save state and use simpler logic
+        if (isTornPDA()) {
+            if (statsDisplay.style.display === 'none') {
+                // Expand
+                statsDisplay.style.display = 'grid';
+                collapseBtn.textContent = '−';
+                const mainPanel = document.getElementById('gym-helper-display');
+                if (mainPanel) mainPanel.style.paddingBottom = '15px';
+            } else {
+                // Collapse
+                statsDisplay.style.display = 'none';
+                collapseBtn.textContent = '+';
+                if (configPanel) configPanel.style.display = 'none';
+                const mainPanel = document.getElementById('gym-helper-display');
+                if (mainPanel) mainPanel.style.paddingBottom = '5px';
+            }
+            return;
+        }
+        
+        // Normal behavior for non-PDA
         const collapsed = isCollapsed();
         const newState = !collapsed;
         
