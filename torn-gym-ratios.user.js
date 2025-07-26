@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Torn Gym Ratios
 // @namespace    http://tampermonkey.net/
-// @version      1.0.4
+// @version      1.0.5
 // @description  Gym training helper with target percentages and current distribution display
 // @author       Mistborn [3037268]
 // @match        https://www.torn.com/gym.php*
@@ -372,8 +372,7 @@
                         font-size: 11px !important;
                     }
                     #gym-helper-display {
-                        margin-left: -10px !important;
-                        margin-right: -10px !important;
+                        margin-left: -5px !important;
                     }
                     #gym-config-panel, #gym-help-tooltip {
                         left: 0 !important;
