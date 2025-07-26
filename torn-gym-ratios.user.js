@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Torn Gym Ratios
 // @namespace    http://tampermonkey.net/
-// @version      1.0.12
+// @version      1.0.13
 // @description  Gym training helper with target percentages and current distribution display
 // @author       Mistborn [3037268]
 // @match        https://www.torn.com/gym.php*
@@ -16,48 +16,6 @@
 (function() {
     'use strict';
 
-    // Error protection system
-    let errorCount = 0;
-    let maxErrors = 5;
-    let errorCooldown = 60000; // 1 minute
-    let lastErrorTime = 0;
-
-    function safeExecute(func, context = 'unknown') {
-        try {
-            if (errorCount >= maxErrors) {
-                const now = Date.now();
-                if (now - lastErrorTime < errorCooldown) {
-                    console.log(`🛑 Gym Helper: Too many errors (${errorCount}), cooling down for ${Math.round((errorCooldown - (now - lastErrorTime)) / 1000)}s`);
-                    return null;
-                }
-                // Reset after cooldown
-                errorCount = 0;
-            }
-            
-            return func();
-        } catch (error) {
-            errorCount++;
-            lastErrorTime = Date.now();
-            console.error(`🚨 Gym Helper Error in ${context}:`, error.message);
-            
-            if (errorCount >= maxErrors) {
-                console.log(`🛑 Gym Helper: Entering cooldown mode after ${maxErrors} errors`);
-                // Clear intervals to stop auto-refresh
-                const intervals = window.gymHelperIntervals || [];
-                intervals.forEach(clearInterval);
-                window.gymHelperIntervals = [];
-            }
-            return null;
-        }
-    }
-        const element = document.querySelector(selector);
-        if (element) {
-            callback(element);
-        } else {
-            setTimeout(() => waitForElement(selector, callback), 100);
-        }
-    }
-
     // Wait for the page to fully load
     function waitForElement(selector, callback) {
         const element = document.querySelector(selector);
@@ -68,45 +26,43 @@
         }
     }
 
-    // Extract current stat values with error protection
+    // Extract current stat values
     function getCurrentStats() {
-        return safeExecute(() => {
-            const stats = {
-                strength: 0,
-                defense: 0,
-                speed: 0,
-                dexterity: 0
-            };
+        const stats = {
+            strength: 0,
+            defense: 0,
+            speed: 0,
+            dexterity: 0
+        };
 
-            // Find stat containers using more robust selectors
-            const strengthContainer = document.querySelector('li[class*="strength___"]');
-            const defenseContainer = document.querySelector('li[class*="defense___"]');
-            const speedContainer = document.querySelector('li[class*="speed___"]');
-            const dexterityContainer = document.querySelector('li[class*="dexterity___"]');
+        // Find stat containers using more robust selectors
+        const strengthContainer = document.querySelector('li[class*="strength___"]');
+        const defenseContainer = document.querySelector('li[class*="defense___"]');
+        const speedContainer = document.querySelector('li[class*="speed___"]');
+        const dexterityContainer = document.querySelector('li[class*="dexterity___"]');
 
-            // Helper function to extract value from container
-            function extractValue(container) {
-                if (!container) return 0;
-                
-                // Try multiple possible selectors for the value element
-                const valueEl = container.querySelector('[class*="propertyValue___"]') || 
-                               container.querySelector('.propertyValue') ||
-                               container.querySelector('[data-value]');
-                
-                if (valueEl) {
-                    const text = valueEl.textContent || valueEl.getAttribute('data-value') || '0';
-                    return parseInt(text.replace(/,/g, '')) || 0;
-                }
-                return 0;
+        // Helper function to extract value from container
+        function extractValue(container) {
+            if (!container) return 0;
+            
+            // Try multiple possible selectors for the value element
+            const valueEl = container.querySelector('[class*="propertyValue___"]') || 
+                           container.querySelector('.propertyValue') ||
+                           container.querySelector('[data-value]');
+            
+            if (valueEl) {
+                const text = valueEl.textContent || valueEl.getAttribute('data-value') || '0';
+                return parseInt(text.replace(/,/g, '')) || 0;
             }
+            return 0;
+        }
 
-            stats.strength = extractValue(strengthContainer);
-            stats.defense = extractValue(defenseContainer);
-            stats.speed = extractValue(speedContainer);
-            stats.dexterity = extractValue(dexterityContainer);
+        stats.strength = extractValue(strengthContainer);
+        stats.defense = extractValue(defenseContainer);
+        stats.speed = extractValue(speedContainer);
+        stats.dexterity = extractValue(dexterityContainer);
 
-            return stats;
-        }, 'getCurrentStats') || { strength: 0, defense: 0, speed: 0, dexterity: 0 };
+        return stats;
     }
 
     // Calculate current distribution percentages
@@ -211,21 +167,8 @@
         GM_setValue(key, collapsed);
     }
 
-    // Detect if running in TornPDA or similar app
-    function isTornPDA() {
-        // Check for common PDA/app indicators
-        return !!(
-            window.navigator.userAgent.includes('TornPDA') ||
-            window.navigator.userAgent.includes('Flutter') ||
-            window.navigator.userAgent.includes('wv') || // WebView indicator
-            window.cordova || // Cordova/PhoneGap
-            window.PhoneGap || 
-            document.URL.indexOf('http://') === -1 && document.URL.indexOf('https://') === -1 || // file:// protocol
-            window.webkit?.messageHandlers || // iOS WebView
-            window.Android || // Android WebView
-            window.flutter_inappwebview // Flutter InAppWebView
-        );
-    }
+    // Track current theme to detect changes
+    let currentTheme = getTheme();
 
     // Update main container styling when theme changes
     function updateMainContainerTheme() {
@@ -361,10 +304,7 @@
                         cursor: pointer;
                         font-size: 12px;
                         margin-right: 5px;
-                        -webkit-transform: translateZ(0);
                         transform: translateZ(0);
-                        -webkit-backface-visibility: hidden;
-                        backface-visibility: hidden;
                     ">?</button>
                     <button id="gym-collapse-btn" style="
                         background: ${colors.neutral};
@@ -447,10 +387,6 @@
                         margin-left: -5px !important;
                         position: relative !important;
                         z-index: 100 !important;
-                        -webkit-transform: translateZ(0) !important;
-                        transform: translateZ(0) !important;
-                        -webkit-backface-visibility: hidden !important;
-                        backface-visibility: hidden !important;
                     }
                     #gym-config-panel, #gym-help-tooltip {
                         left: 0 !important;
@@ -458,8 +394,6 @@
                         margin-left: 0 !important;
                         margin-right: 0 !important;
                         z-index: 1010 !important;
-                        -webkit-transform: translateZ(0) !important;
-                        transform: translateZ(0) !important;
                     }
                     #gym-config-panel > div:nth-child(2) {
                         grid-template-columns: 1fr !important;
@@ -580,26 +514,6 @@
         
         if (!statsDisplay || !collapseBtn) return;
         
-        // In TornPDA, don't save state and use simpler logic
-        if (isTornPDA()) {
-            if (statsDisplay.style.display === 'none') {
-                // Expand
-                statsDisplay.style.display = 'grid';
-                collapseBtn.textContent = '−';
-                const mainPanel = document.getElementById('gym-helper-display');
-                if (mainPanel) mainPanel.style.paddingBottom = '15px';
-            } else {
-                // Collapse
-                statsDisplay.style.display = 'none';
-                collapseBtn.textContent = '+';
-                if (configPanel) configPanel.style.display = 'none';
-                const mainPanel = document.getElementById('gym-helper-display');
-                if (mainPanel) mainPanel.style.paddingBottom = '5px';
-            }
-            return;
-        }
-        
-        // Normal behavior for non-PDA
         const collapsed = isCollapsed();
         const newState = !collapsed;
         
@@ -628,17 +542,8 @@
         }
     }
 
-    // Track current theme to detect changes
-    let currentTheme = getTheme();
-
     // Apply saved collapse state
     function applySavedCollapseState() {
-        // Disable collapse memory in TornPDA to avoid stuck states
-        if (isTornPDA()) {
-            setCollapsed(false); // Always start expanded in PDA
-            return;
-        }
-        
         // Use separate storage for mobile vs desktop to avoid conflicts
         if (isCollapsed()) {
             setTimeout(() => {
@@ -733,14 +638,6 @@
 
     // Initialize the script
     function init() {
-        console.log('🔍 Gym Helper: Script starting...');
-        
-        // Simple test - just show we're running
-        const testDiv = document.createElement('div');
-        testDiv.innerHTML = 'SCRIPT IS RUNNING - DEBUG VERSION';
-        testDiv.style.cssText = 'background: red; color: white; padding: 10px; position: fixed; top: 0; left: 0; z-index: 99999;';
-        document.body.appendChild(testDiv);
-        
         // Wait for the page structure to be ready
         waitForElement('.page-head-delimiter', (delimiter) => {
             // Create and insert the display panel
@@ -807,14 +704,8 @@
             // Initial total percentage update
             updateTotalPercentage();
 
-            // Auto-refresh stats display every 5 seconds with error protection
-            const refreshInterval = setInterval(() => {
-                safeExecute(() => updateStatsDisplay(), 'auto-refresh');
-            }, 5000);
-            
-            // Store interval for cleanup if needed
-            window.gymHelperIntervals = window.gymHelperIntervals || [];
-            window.gymHelperIntervals.push(refreshInterval);
+            // Auto-refresh stats display every 5 seconds
+            setInterval(updateStatsDisplay, 5000);
 
             // Close panels when clicking outside
             document.addEventListener('click', (e) => {
