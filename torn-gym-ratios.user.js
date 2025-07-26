@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Torn Gym Ratios
 // @namespace    http://tampermonkey.net/
-// @version      1.0.8
+// @version      1.0.9
 // @description  Gym training helper with target percentages and current distribution display
 // @author       Mistborn [3037268]
 // @match        https://www.torn.com/gym.php*
@@ -167,8 +167,19 @@
         GM_setValue(key, collapsed);
     }
 
-    // Track current theme to detect changes
-    let currentTheme = getTheme();
+    // Detect if running in TornPDA or similar app
+    function isTornPDA() {
+        // Check for common PDA/app indicators
+        return !!(
+            window.navigator.userAgent.includes('TornPDA') ||
+            window.navigator.userAgent.includes('wv') || // WebView indicator
+            window.cordova || // Cordova/PhoneGap
+            window.PhoneGap || 
+            document.URL.indexOf('http://') === -1 && document.URL.indexOf('https://') === -1 || // file:// protocol
+            window.webkit?.messageHandlers || // iOS WebView
+            window.Android // Android WebView
+        );
+    }
 
     // Update main container styling when theme changes
     function updateMainContainerTheme() {
@@ -304,7 +315,10 @@
                         cursor: pointer;
                         font-size: 12px;
                         margin-right: 5px;
+                        -webkit-transform: translateZ(0);
                         transform: translateZ(0);
+                        -webkit-backface-visibility: hidden;
+                        backface-visibility: hidden;
                     ">?</button>
                     <button id="gym-collapse-btn" style="
                         background: ${colors.neutral};
@@ -387,6 +401,10 @@
                         margin-left: -5px !important;
                         position: relative !important;
                         z-index: 100 !important;
+                        -webkit-transform: translateZ(0) !important;
+                        transform: translateZ(0) !important;
+                        -webkit-backface-visibility: hidden !important;
+                        backface-visibility: hidden !important;
                     }
                     #gym-config-panel, #gym-help-tooltip {
                         left: 0 !important;
@@ -394,6 +412,8 @@
                         margin-left: 0 !important;
                         margin-right: 0 !important;
                         z-index: 1010 !important;
+                        -webkit-transform: translateZ(0) !important;
+                        transform: translateZ(0) !important;
                     }
                     #gym-config-panel > div:nth-child(2) {
                         grid-template-columns: 1fr !important;
@@ -542,8 +562,17 @@
         }
     }
 
+    // Track current theme to detect changes
+    let currentTheme = getTheme();
+
     // Apply saved collapse state
     function applySavedCollapseState() {
+        // Disable collapse memory in TornPDA to avoid stuck states
+        if (isTornPDA()) {
+            setCollapsed(false); // Always start expanded in PDA
+            return;
+        }
+        
         // Use separate storage for mobile vs desktop to avoid conflicts
         if (isCollapsed()) {
             setTimeout(() => {
