@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Torn Gym Ratios
 // @namespace    http://tampermonkey.net/
-// @version      1.0.14
+// @version      1.0.15
 // @description  Gym training helper with target percentages and current distribution display
 // @author       Mistborn [3037268]
 // @match        https://www.torn.com/gym.php*
@@ -15,6 +15,16 @@
 
 (function() {
     'use strict';
+
+    // Detect if running in TornPDA
+    function isTornPDA() {
+        return !!(
+            navigator.userAgent.includes('com.manuito.tornpda') ||
+            window.flutter_inappwebview ||
+            window.__PDA_platformReadyPromise ||
+            window.PDA_httpGet
+        );
+    }
 
     // Wait for the page to fully load
     function waitForElement(selector, callback) {
@@ -154,21 +164,25 @@
         }
     }
 
-    // Detect if running in TornPDA
-    function isTornPDA() {
-        return !!(
-            navigator.userAgent.includes('com.manuito.tornpda') ||
-            window.flutter_inappwebview ||
-            window.__PDA_platformReadyPromise ||
-            window.PDA_httpGet
-        );
-    }
+    // Load/save collapse state with PDA support
+    function isCollapsed() {
+        // In TornPDA, check current DOM state instead of storage
+        if (isTornPDA()) {
+            const statsDisplay = document.getElementById('gym-stats-display');
+            return statsDisplay ? statsDisplay.style.display === 'none' : false;
+        }
+        
         const isMobile = window.innerWidth <= 768;
         const key = isMobile ? 'gym_helper_collapsed_mobile' : 'gym_helper_collapsed_desktop';
         return GM_getValue(key, false);
     }
 
     function setCollapsed(collapsed) {
+        // In TornPDA, don't save to storage - just update DOM
+        if (isTornPDA()) {
+            return; // No storage in PDA
+        }
+        
         const isMobile = window.innerWidth <= 768;
         const key = isMobile ? 'gym_helper_collapsed_mobile' : 'gym_helper_collapsed_desktop';
         GM_setValue(key, collapsed);
