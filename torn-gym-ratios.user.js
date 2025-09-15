@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Torn Gym Ratios
 // @namespace    http://tampermonkey.net/
-// @version      1.0.21
+// @version      1.0.22
 // @description  Gym training helper with target percentages and current distribution display
 // @author       Mistborn [3037268]
 // @match        https://www.torn.com/gym.php*
@@ -653,7 +653,7 @@
                 ">
                     <div style="font-weight: bold; margin-bottom: 5px; color: ${colors.textPrimary};">${statLabels[index]}</div>
                     <div class="gym-stat-current" style="font-size: 11px; color: ${colors.textSecondary}; margin-bottom: 3px;">
-                        Current: ${stats[stat].toLocaleString()}
+                        ${stats[stat].toLocaleString()}
                     </div>
                     <div style="color: ${color}; font-weight: bold; margin-bottom: 4px;">
                         ${current}% (${diff > 0 ? '+' : ''}${diff.toFixed(1)})
