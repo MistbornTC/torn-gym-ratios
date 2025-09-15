@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Torn Gym Ratios
 // @namespace    http://tampermonkey.net/
-// @version      1.0.25
+// @version      1.0.26
 // @description  Gym training helper with target percentages and current distribution display
 // @author       Mistborn [3037268]
 // @match        https://www.torn.com/gym.php*
@@ -687,19 +687,107 @@
     }
 
     // Initialize the script
-    function init() {
-            // Wait for the gym stats to be loaded and ready
-            if (isTornPDA()) {
-                // Use slower method for PDA compatibility
-                waitForElement('.page-head-delimiter', (delimiter) => {
-            } else {
-                // Use faster method for non-PDA
-                waitForElement('li[class*="strength___"]', (strengthEl) => {
-                    const delimiter = document.querySelector('.page-head-delimiter');
-                    if (!delimiter) {
-                        setTimeout(init, 100);
-                        return;
+    // Initialize the script
+function init() {
+    // Wait for the gym stats to be loaded and ready
+    if (isTornPDA()) {
+        // Use slower method for PDA compatibility
+        waitForElement('.page-head-delimiter', (delimiter) => {
+            // Create and insert the display panel
+            const displayPanel = createDisplayPanel();
+            const configPanel = createConfigPanel();
+            
+            displayPanel.appendChild(configPanel);
+            delimiter.parentNode.insertBefore(displayPanel, delimiter.nextSibling);
+
+            // Update initial display
+            updateStatsDisplay();
+
+            // Apply saved collapse state after a short delay
+            setTimeout(applySavedCollapseState, 200);
+
+            // Set up event listeners - simple and clean
+            document.getElementById('gym-help-btn').addEventListener('click', () => {
+                const tooltip = document.getElementById('gym-help-tooltip');
+                tooltip.style.display = tooltip.style.display === 'none' ? 'block' : 'none';
+                const configPanel = document.getElementById('gym-config-panel');
+                if (tooltip.style.display === 'block') configPanel.style.display = 'none';
+            });
+
+            // Add header click to toggle collapse
+            document.getElementById('gym-header-clickable').addEventListener('click', toggleCollapsed);
+            document.getElementById('gym-collapse-btn').addEventListener('click', toggleCollapsed);
+
+            document.getElementById('gym-config-btn').addEventListener('click', () => {
+                if (isCollapsed()) {
+                    toggleCollapsed();
+                    setTimeout(() => {
+                        const panel = document.getElementById('gym-config-panel');
+                        if (panel) panel.style.display = 'block';
+                    }, 100);
+                } else {
+                    const panel = document.getElementById('gym-config-panel');
+                    if (panel) {
+                        panel.style.display = panel.style.display === 'none' ? 'block' : 'none';
+                        const tooltip = document.getElementById('gym-help-tooltip');
+                        if (panel.style.display === 'block') tooltip.style.display = 'none';
                     }
+                }
+            });
+
+            document.getElementById('cancel-config').addEventListener('click', () => {
+                document.getElementById('gym-config-panel').style.display = 'none';
+            });
+
+            document.getElementById('save-targets').addEventListener('click', () => {
+                const targets = {
+                    strength: parseFloat(document.getElementById('target-strength').value),
+                    defense: parseFloat(document.getElementById('target-defense').value),
+                    speed: parseFloat(document.getElementById('target-speed').value),
+                    dexterity: parseFloat(document.getElementById('target-dexterity').value)
+                };
+                
+                saveTargets(targets);
+                updateStatsDisplay();
+                document.getElementById('gym-config-panel').style.display = 'none';
+            });
+
+            // Add input listeners for real-time validation
+            ['target-strength', 'target-defense', 'target-speed', 'target-dexterity'].forEach(id => {
+                document.getElementById(id).addEventListener('input', updateTotalPercentage);
+            });
+
+            // Initial total percentage update
+            updateTotalPercentage();
+
+            // Auto-refresh stats display every 5 seconds
+            setInterval(updateStatsDisplay, 5000);
+
+            // Close panels when clicking outside
+            document.addEventListener('click', (e) => {
+                const helpBtn = document.getElementById('gym-help-btn');
+                const tooltip = document.getElementById('gym-help-tooltip');
+                const configBtn = document.getElementById('gym-config-btn');
+                const configPanel = document.getElementById('gym-config-panel');
+                
+                if (!helpBtn.contains(e.target) && !tooltip.contains(e.target)) {
+                    tooltip.style.display = 'none';
+                }
+                
+                if (!configBtn.contains(e.target) && !configPanel.contains(e.target)) {
+                    configPanel.style.display = 'none';
+                }
+            });
+        });
+    } else {
+        // Use faster method for non-PDA
+        waitForElement('li[class*="strength___"]', (strengthEl) => {
+            const delimiter = document.querySelector('.page-head-delimiter');
+            if (!delimiter) {
+                setTimeout(init, 100);
+                return;
+            }
+            
             // Create and insert the display panel
             const displayPanel = createDisplayPanel();
             const configPanel = createConfigPanel();
@@ -787,6 +875,7 @@
             });
         });
     }
+}
 
     // Start the script
     init();
