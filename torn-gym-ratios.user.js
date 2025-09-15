@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Torn Gym Ratios
 // @namespace    http://tampermonkey.net/
-// @version      1.0.23
+// @version      1.0.24
 // @description  Gym training helper with target percentages and current distribution display
 // @author       Mistborn [3037268]
 // @match        https://www.torn.com/gym.php*
@@ -688,8 +688,13 @@
 
     // Initialize the script
     function init() {
-        // Wait for the page structure to be ready
-        waitForElement('.page-head-delimiter', (delimiter) => {
+        // Wait for the gym stats to be loaded and ready
+        waitForElement('li[class*="strength___"]', (strengthEl) => {
+            const delimiter = document.querySelector('.page-head-delimiter');
+            if (!delimiter) {
+                setTimeout(init, 100);
+                return;
+            }
             // Create and insert the display panel
             const displayPanel = createDisplayPanel();
             const configPanel = createConfigPanel();
