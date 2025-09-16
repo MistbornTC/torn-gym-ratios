@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Torn Gym Ratios (PDA Compatible)
 // @namespace    http://tampermonkey.net/
-// @version      3.0
+// @version      3.1
 // @description  Gym training helper with target percentages, current distribution display, and optional raw differences
 // @author       Mistborn [3037268]
 // @match        https://www.torn.com/gym.php*
