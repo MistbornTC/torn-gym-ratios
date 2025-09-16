@@ -5,12 +5,12 @@ A Tampermonkey script that helps optimize your gym training in Torn by showing c
 ## Features
 - 🎯 Set target percentage for each stat
 - 🌈 Color-coded indicators (Green=on target, Yellow/Orange=above, Red=below)
-- 📱 Mobile responsive design
+- 📱 Mobile responsive design / PDA compatible
 - 🌙 Dark/Light mode support
 - 💾 Persistent settings
 
 ## Installation
-1. Install [Tampermonkey](https://www.tampermonkey.net/)
+1. Install [Tampermonkey](https://www.tampermonkey.net/) or similar
 2. Click [Install Script](https://github.com/MistbornTC/torn-gym-ratios/raw/main/torn-gym-ratios.user.js)
 3. Visit https://www.torn.com/gym.php
 
