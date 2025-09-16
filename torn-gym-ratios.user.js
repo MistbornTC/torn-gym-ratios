@@ -1,8 +1,8 @@
 // ==UserScript==
 // @name         Torn Gym Ratios (PDA Compatible)
 // @namespace    http://tampermonkey.net/
-// @version      2.0.0
-// @description  Gym training helper with target percentages and current distribution display
+// @version      3.0
+// @description  Gym training helper with target percentages, current distribution display, and optional raw differences
 // @author       Mistborn [3037268]
 // @match        https://www.torn.com/gym.php*
 // @icon         https://www.google.com/s2/favicons?sz=64&domain=torn.com
@@ -74,6 +74,52 @@
         }
     }
 
+    // Format numbers with appropriate abbreviations
+    function formatNumber(num) {
+        if (num < 100000) {
+            return num.toLocaleString();
+        } else if (num < 1000000) {
+            return Math.round(num / 1000) + 'k';
+        } else if (num < 1000000000) {
+            const millions = num / 1000000;
+            return millions % 1 < 0.05 ? Math.round(millions) + 'M' : millions.toFixed(1) + 'M';
+        } else {
+            const billions = num / 1000000000;
+            if (billions % 1 < 0.005) return Math.round(billions) + 'B';
+            return parseFloat(billions.toFixed(2)) + 'B'; // Auto-trims trailing zeros
+        }
+    }
+
+    // Calculate stat difference text and color
+    function getStatDifferenceText(statName, currentValue, targetValue, color, percentageDiff) {
+        const difference = Math.abs(currentValue - targetValue);
+        const formattedDiff = formatNumber(Math.round(difference));
+        const isMobile = window.innerWidth <= 768;
+        
+        if (Math.abs(percentageDiff) <= 1) {
+            // Within 1% tolerance - use the same logic as color determination
+            const sign = currentValue >= targetValue ? '+' : '-';
+            return {
+                text: `${statName} on target (${sign}${formattedDiff})`,
+                color: color
+            };
+        } else if (currentValue > targetValue) {
+            // Over target
+            const suffix = isMobile ? ' over' : ' over target';
+            return {
+                text: `${statName} ${formattedDiff}${suffix}`,
+                color: color
+            };
+        } else {
+            // Under target
+            const suffix = isMobile ? ' under' : ' under target';
+            return {
+                text: `${statName} ${formattedDiff}${suffix}`,
+                color: color
+            };
+        }
+    }
+
     // Wait for element
     function waitForElement(selector, callback, timeout = 30000) {
         const startTime = Date.now();
@@ -141,7 +187,7 @@
         };
     }
 
-    // Load/save targets
+    // Load/save targets and settings
     function loadTargets() {
         return {
             strength: safeGM_getValue('gym_target_strength', 25),
@@ -156,6 +202,14 @@
         safeGM_setValue('gym_target_defense', targets.defense);
         safeGM_setValue('gym_target_speed', targets.speed);
         safeGM_setValue('gym_target_dexterity', targets.dexterity);
+    }
+
+    function loadShowStatDifferences() {
+        return safeGM_getValue('gym_show_stat_differences', false);
+    }
+
+    function saveShowStatDifferences(show) {
+        safeGM_setValue('gym_show_stat_differences', show);
     }
 
     // Theme detection
@@ -452,6 +506,7 @@
     function createConfigPanel() {
         const colors = getThemeColors();
         const targets = loadTargets();
+        const showStatDifferences = loadShowStatDifferences();
 
         const configPanel = document.createElement('div');
         configPanel.id = 'gym-config-panel';
@@ -524,6 +579,15 @@
                         box-sizing: border-box;
                     ">
                 </div>
+            </div>
+            <div style="margin-bottom: 15px;">
+                <label style="display: flex; align-items: center; color: ${colors.textSecondary}; cursor: pointer;">
+                    <input type="checkbox" id="show-stat-differences" ${showStatDifferences ? 'checked' : ''} style="
+                        margin-right: 8px;
+                        transform: scale(1.1);
+                    ">
+                    Include raw stat difference?
+                </label>
             </div>
             <div style="display: grid; grid-template-columns: repeat(2, 1fr); gap: 15px;">
                 <button id="save-targets" style="
@@ -632,6 +696,7 @@
         const stats = getCurrentStats();
         const dist = calculateCurrentDistribution(stats);
         const targets = loadTargets();
+        const showStatDifferences = loadShowStatDifferences();
         const colors = getThemeColors();
 
         const statsDiv = document.getElementById('gym-stats-display');
@@ -654,6 +719,31 @@
             const diff = current - target;
             const color = Math.abs(diff) <= 1 ? colors.success : (diff > 0 ? colors.warning : colors.danger);
 
+            let additionalContent = '';
+            if (showStatDifferences) {
+                // Calculate target value in absolute numbers
+                const targetValue = (target / 100) * total;
+                const currentValue = stats[stat];
+
+                // Get difference text and color
+                const diffInfo = getStatDifferenceText(statLabels[index], currentValue, targetValue, color, diff);
+
+                additionalContent = `
+                    <div style="font-size: 10px; color: ${colors.textMuted}; margin-bottom: 10px;">
+                        Target: ${target}%
+                    </div>
+                    <div style="font-size: 10px; color: ${diffInfo.color}; font-weight: bold;">
+                        ${diffInfo.text}
+                    </div>
+                `;
+            } else {
+                additionalContent = `
+                    <div style="font-size: 10px; color: ${colors.textMuted};">
+                        Target: ${target}%
+                    </div>
+                `;
+            }
+
             return `
                 <div style="
                     background: ${colors.statBoxBg};
@@ -670,14 +760,12 @@
                     <div style="color: ${color}; font-weight: bold; margin-bottom: 4px;">
                         ${current}% (${diff > 0 ? '+' : ''}${diff.toFixed(1)})
                     </div>
-                    <div style="font-size: 10px; color: ${colors.textMuted};">
-                        Target: ${target}%
-                    </div>
+                    ${additionalContent}
                 </div>
             `;
         }).join('');
 
-        console.log('Stats updated');
+        console.log('Stats updated' + (showStatDifferences ? ' with differences' : ''));
     }
 
     // Update total percentage in config
@@ -808,7 +896,10 @@
                 dexterity: parseFloat(document.getElementById('target-dexterity').value)
             };
 
+            const showStatDifferences = document.getElementById('show-stat-differences').checked;
+
             saveTargets(targets);
+            saveShowStatDifferences(showStatDifferences);
             updateStats();
             document.getElementById('gym-config-panel').style.display = 'none';
         });
