@@ -1,14 +1,15 @@
 // ==UserScript==
-// @name         Torn Gym Ratios
+// @name         Torn Gym Ratios (PDA Compatible)
 // @namespace    http://tampermonkey.net/
-// @version      1.0.26
+// @version      2.0.0
 // @description  Gym training helper with target percentages and current distribution display
 // @author       Mistborn [3037268]
 // @match        https://www.torn.com/gym.php*
 // @icon         https://www.google.com/s2/favicons?sz=64&domain=torn.com
 // @grant        GM_setValue
 // @grant        GM_getValue
-// @run-at       document-body
+// @grant        GM_addStyle
+// @run-at       document-end
 // @license      MIT
 // @downloadURL  https://github.com/MistbornTC/torn-gym-ratios/raw/main/torn-gym-ratios.user.js
 // @updateURL    https://github.com/MistbornTC/torn-gym-ratios/raw/main/torn-gym-ratios.meta.js
@@ -18,50 +19,100 @@
 (function() {
     'use strict';
 
-    // Detect if running in TornPDA
+    console.log('=== TORN GYM RATIOS SCRIPT LOADED ===');
+
+    // Enhanced PDA detection
     function isTornPDA() {
-        return !!(
-            navigator.userAgent.includes('com.manuito.tornpda') ||
-            window.flutter_inappwebview ||
-            window.__PDA_platformReadyPromise ||
-            window.PDA_httpGet
-        );
+        const userAgentCheck = navigator.userAgent.includes('com.manuito.tornpda');
+        const flutterCheck = !!window.flutter_inappwebview;
+        const platformCheck = !!window.__PDA_platformReadyPromise;
+        const httpCheck = !!window.PDA_httpGet;
+
+        const result = !!(userAgentCheck || flutterCheck || platformCheck || httpCheck);
+        console.log('PDA Detection:', result, {
+            userAgent: userAgentCheck,
+            flutter: flutterCheck,
+            platform: platformCheck,
+            httpGet: httpCheck
+        });
+        return result;
     }
 
-    // Wait for the page to fully load
-    function waitForElement(selector, callback) {
-        const element = document.querySelector(selector);
-        if (element) {
-            callback(element);
-        } else {
-            setTimeout(() => waitForElement(selector, callback), 100);
+    // Universal storage functions
+    function safeGM_getValue(key, defaultValue) {
+        try {
+            if (typeof GM_getValue !== 'undefined') {
+                return GM_getValue(key, defaultValue);
+            }
+        } catch (e) {
+            console.log('GM_getValue failed, using localStorage fallback');
         }
+
+        try {
+            const stored = localStorage.getItem('gym_' + key);
+            return stored ? JSON.parse(stored) : defaultValue;
+        } catch (e) {
+            console.log('localStorage failed, using default:', defaultValue);
+            return defaultValue;
+        }
+    }
+
+    function safeGM_setValue(key, value) {
+        try {
+            if (typeof GM_setValue !== 'undefined') {
+                GM_setValue(key, value);
+                return;
+            }
+        } catch (e) {
+            console.log('GM_setValue failed, using localStorage fallback');
+        }
+
+        try {
+            localStorage.setItem('gym_' + key, JSON.stringify(value));
+        } catch (e) {
+            console.log('Storage failed');
+        }
+    }
+
+    // Wait for element
+    function waitForElement(selector, callback, timeout = 30000) {
+        const startTime = Date.now();
+
+        function check() {
+            const element = document.querySelector(selector);
+            if (element) {
+                console.log('Found element:', selector);
+                callback(element);
+                return;
+            }
+
+            if (Date.now() - startTime > timeout) {
+                console.error('Timeout waiting for element:', selector);
+                return;
+            }
+
+            setTimeout(check, 100);
+        }
+
+        check();
     }
 
     // Extract current stat values
     function getCurrentStats() {
-        const stats = {
-            strength: 0,
-            defense: 0,
-            speed: 0,
-            dexterity: 0
-        };
+        const stats = { strength: 0, defense: 0, speed: 0, dexterity: 0 };
 
-        // Find stat containers using more robust selectors
         const strengthContainer = document.querySelector('li[class*="strength___"]');
         const defenseContainer = document.querySelector('li[class*="defense___"]');
         const speedContainer = document.querySelector('li[class*="speed___"]');
         const dexterityContainer = document.querySelector('li[class*="dexterity___"]');
 
-        // Helper function to extract value from container
         function extractValue(container) {
             if (!container) return 0;
-            
-            // Try multiple possible selectors for the value element
-            const valueEl = container.querySelector('[class*="propertyValue___"]') || 
+
+            const valueEl = container.querySelector('[class*="propertyValue___"]') ||
                            container.querySelector('.propertyValue') ||
                            container.querySelector('[data-value]');
-            
+
             if (valueEl) {
                 const text = valueEl.textContent || valueEl.getAttribute('data-value') || '0';
                 return parseInt(text.replace(/,/g, '')) || 0;
@@ -77,7 +128,7 @@
         return stats;
     }
 
-    // Calculate current distribution percentages
+    // Calculate percentages
     function calculateCurrentDistribution(stats) {
         const total = stats.strength + stats.defense + stats.speed + stats.dexterity;
         if (total === 0) return { strength: 0, defense: 0, speed: 0, dexterity: 0 };
@@ -90,39 +141,37 @@
         };
     }
 
-    // Load saved target percentages
+    // Load/save targets
     function loadTargets() {
         return {
-            strength: GM_getValue('gym_target_strength', 25),
-            defense: GM_getValue('gym_target_defense', 25),
-            speed: GM_getValue('gym_target_speed', 25),
-            dexterity: GM_getValue('gym_target_dexterity', 25)
+            strength: safeGM_getValue('gym_target_strength', 25),
+            defense: safeGM_getValue('gym_target_defense', 25),
+            speed: safeGM_getValue('gym_target_speed', 25),
+            dexterity: safeGM_getValue('gym_target_dexterity', 25)
         };
     }
 
-    // Save target percentages
     function saveTargets(targets) {
-        GM_setValue('gym_target_strength', targets.strength);
-        GM_setValue('gym_target_defense', targets.defense);
-        GM_setValue('gym_target_speed', targets.speed);
-        GM_setValue('gym_target_dexterity', targets.dexterity);
+        safeGM_setValue('gym_target_strength', targets.strength);
+        safeGM_setValue('gym_target_defense', targets.defense);
+        safeGM_setValue('gym_target_speed', targets.speed);
+        safeGM_setValue('gym_target_dexterity', targets.dexterity);
     }
 
-    // Detect user's theme preference
+    // Theme detection
     function getTheme() {
         const body = document.body;
-        const isDarkMode = body.classList.contains('dark-mode') || 
+        const isDarkMode = body.classList.contains('dark-mode') ||
                           body.classList.contains('dark') ||
                           body.style.background.includes('#191919') ||
                           getComputedStyle(body).backgroundColor === 'rgb(25, 25, 25)';
-        
+
         return isDarkMode ? 'dark' : 'light';
     }
 
-    // Get theme-appropriate colors
     function getThemeColors() {
         const theme = getTheme();
-        
+
         if (theme === 'dark') {
             return {
                 panelBg: '#2a2a2a',
@@ -166,51 +215,49 @@
         }
     }
 
-    // Load/save collapse state with PDA support
+    // Collapse state management
     function isCollapsed() {
-        // In TornPDA, check current DOM state instead of storage
         if (isTornPDA()) {
             const statsDisplay = document.getElementById('gym-stats-display');
             return statsDisplay ? statsDisplay.style.display === 'none' : false;
         }
-        
+
         const isMobile = window.innerWidth <= 768;
         const key = isMobile ? 'gym_helper_collapsed_mobile' : 'gym_helper_collapsed_desktop';
-        return GM_getValue(key, false);
+        return safeGM_getValue(key, false);
     }
 
     function setCollapsed(collapsed) {
-        // In TornPDA, don't save to storage - just update DOM
         if (isTornPDA()) {
             return; // No storage in PDA
         }
-        
+
         const isMobile = window.innerWidth <= 768;
         const key = isMobile ? 'gym_helper_collapsed_mobile' : 'gym_helper_collapsed_desktop';
-        GM_setValue(key, collapsed);
+        safeGM_setValue(key, collapsed);
     }
 
     // Track current theme to detect changes
     let currentTheme = getTheme();
 
-    // Update main container styling when theme changes
+    // Dynamic theme update function
     function updateMainContainerTheme() {
         const newTheme = getTheme();
         if (newTheme !== currentTheme) {
             currentTheme = newTheme;
             const colors = getThemeColors();
             const mainPanel = document.getElementById('gym-helper-display');
-            
+
             if (mainPanel) {
                 mainPanel.style.background = colors.panelBg;
-                mainPanel.style.border = `1px solid ${colors.panelBorder}`;
+                mainPanel.style.border = '1px solid ' + colors.panelBorder;
                 mainPanel.style.color = colors.textPrimary;
                 mainPanel.style.boxShadow = colors.statBoxShadow;
-                
+
                 // Update title color
                 const title = mainPanel.querySelector('#gym-header-clickable');
                 if (title) title.style.color = colors.textPrimary;
-                
+
                 // Update button colors
                 const helpBtn = document.getElementById('gym-help-btn');
                 const collapseBtn = document.getElementById('gym-collapse-btn');
@@ -218,70 +265,48 @@
                 if (helpBtn) helpBtn.style.background = colors.neutral;
                 if (collapseBtn) collapseBtn.style.background = colors.neutral;
                 if (configBtn) configBtn.style.background = colors.primary;
-                
-                // Update help tooltip colors
+
+                // Update help tooltip
                 const tooltip = document.getElementById('gym-help-tooltip');
                 if (tooltip) {
                     tooltip.style.background = colors.statBoxBg;
-                    tooltip.style.border = `1px solid ${colors.statBoxBorder}`;
+                    tooltip.style.border = '1px solid ' + colors.statBoxBorder;
                     tooltip.style.boxShadow = colors.statBoxShadow;
-                    
-                    // Update tooltip text colors and bars
+
                     const tooltipElements = tooltip.querySelectorAll('div');
                     tooltipElements.forEach(el => {
                         el.style.color = colors.textPrimary;
                     });
-                    
-                    // Update the colored bars in tooltip
-                    const bars = tooltip.querySelectorAll('span[style*="font-size: 14px"]');
-                    if (bars.length >= 3) {
-                        bars[0].style.color = colors.success; // Green bar
-                        bars[1].style.color = colors.warning; // Yellow/Orange bar  
-                        bars[2].style.color = colors.danger;  // Red bar
-                    }
-                    
-                    // Update the Yellow/Orange text based on theme - fix the HTML structure
-                    const middleDiv = tooltip.children[2]; // The second color guide div
+
+                    // Update the Yellow/Orange text based on theme
+                    const middleDiv = tooltip.children[2];
                     if (middleDiv) {
-                        const newTheme = getTheme();
                         const newColorName = newTheme === 'light' ? 'Yellow' : 'Orange';
-                        middleDiv.innerHTML = `<span style="color: ${colors.warning}; font-weight: bold; font-size: 14px;">▏</span> <span style="font-weight: bold;">${newColorName}:</span> Above target (focus on other stats)`;
+                        middleDiv.innerHTML = '<span style="color: ' + colors.warning + '; font-weight: bold; font-size: 16px;">|</span> <span style="font-weight: bold;">' + newColorName + ':</span> Above target (focus on other stats)';
                     }
                 }
-                
-                // Update config panel colors
+
+                // Update config panel
                 const configPanel = document.getElementById('gym-config-panel');
                 if (configPanel) {
                     configPanel.style.background = colors.configBg;
-                    configPanel.style.border = `1px solid ${colors.configBorder}`;
-                    
-                    // Update config panel text colors
+                    configPanel.style.border = '1px solid ' + colors.configBorder;
+
                     const configTitle = configPanel.querySelector('h4');
-                    if (configTitle) {
-                        configTitle.style.color = colors.textPrimary;
-                        configTitle.style.fontSize = '16px'; // Match main heading
-                    }
-                    
+                    if (configTitle) configTitle.style.color = colors.textPrimary;
+
                     const configLabels = configPanel.querySelectorAll('label');
                     configLabels.forEach(label => {
                         label.style.color = colors.textSecondary;
                     });
-                    
+
                     const configInputs = configPanel.querySelectorAll('input');
                     configInputs.forEach(input => {
                         input.style.background = colors.inputBg;
-                        input.style.border = `1px solid ${colors.inputBorder}`;
+                        input.style.border = '1px solid ' + colors.inputBorder;
                         input.style.color = colors.textPrimary;
                     });
-                    
-                    const totalSpan = configPanel.querySelector('#total-percentage');
-                    if (totalSpan) {
-                        // Keep the existing color logic but update if it's using default colors
-                        if (totalSpan.style.color === 'rgb(204, 204, 204)' || totalSpan.style.color === '#6c757d') {
-                            totalSpan.style.color = colors.textSecondary;
-                        }
-                    }
-                    
+
                     const saveBtn = configPanel.querySelector('#save-targets');
                     const cancelBtn = configPanel.querySelector('#cancel-config');
                     if (saveBtn) saveBtn.style.background = colors.success;
@@ -291,10 +316,10 @@
         }
     }
 
-    // Create the main display panel
+    // Create the main display panel using innerHTML (PDA-compatible)
     function createDisplayPanel() {
         const colors = getThemeColors();
-        
+
         const panel = document.createElement('div');
         panel.id = 'gym-helper-display';
         panel.style.cssText = `
@@ -312,12 +337,13 @@
         panel.innerHTML = `
             <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px;">
                 <h3 id="gym-header-clickable" style="
-                    margin: 0; 
-                    color: ${colors.textPrimary}; 
+                    margin: 0;
+                    color: ${colors.textPrimary};
                     font-size: 16px;
                     user-select: none;
+                    cursor: pointer;
                 ">Gym Ratios</h3>
-                <div>
+                <div style="margin-left: auto; margin-right: -21px;">
                     <button id="gym-help-btn" style="
                         background: ${colors.neutral};
                         color: white;
@@ -328,7 +354,7 @@
                         font-size: 12px;
                         margin-right: 5px;
                         ${!isTornPDA() ? '-webkit-transform: translateZ(0); transform: translateZ(0); -webkit-backface-visibility: hidden; backface-visibility: hidden;' : 'outline: none; -webkit-appearance: none; appearance: none; border: none; position: relative; overflow: hidden;'}
-                    ">?</button>
+                    ">&quest;</button>
                     <button id="gym-collapse-btn" style="
                         background: ${colors.neutral};
                         color: white;
@@ -339,7 +365,7 @@
                         font-size: 12px;
                         margin-right: 5px;
                         ${!isTornPDA() ? '-webkit-transform: translateZ(0); transform: translateZ(0); -webkit-backface-visibility: hidden; backface-visibility: hidden;' : 'outline: none; -webkit-appearance: none; appearance: none; border: none; position: relative; overflow: hidden;'}
-                    ">−</button>
+                    ">&minus;</button>
                     <button id="gym-config-btn" style="
                         background: ${colors.primary};
                         color: white;
@@ -370,13 +396,13 @@
             ">
                 <div style="margin-bottom: 8px; font-weight: bold; color: ${colors.textPrimary};">Color Guide:</div>
                 <div style="margin-bottom: 6px; color: ${colors.textPrimary};">
-                    <span style="color: ${colors.success}; font-weight: bold; font-size: 14px;">▏</span> <span style="font-weight: bold;">Green:</span> On target (within ±1% of target)
+                    <span style="color: ${colors.success}; font-weight: bold; font-size: 16px;">|</span> <span style="font-weight: bold;">Green:</span> On target (within &plusmn;1% of target)
                 </div>
                 <div style="margin-bottom: 6px; color: ${colors.textPrimary};">
-                    <span style="color: ${colors.warning}; font-weight: bold; font-size: 14px;">▏</span> <span style="font-weight: bold;">${getTheme() === 'light' ? 'Yellow' : 'Orange'}:</span> Above target (focus on other stats)
+                    <span style="color: ${colors.warning}; font-weight: bold; font-size: 16px;">|</span> <span style="font-weight: bold;">${getTheme() === 'light' ? 'Yellow' : 'Orange'}:</span> Above target (focus on other stats)
                 </div>
                 <div style="color: ${colors.textPrimary};">
-                    <span style="color: ${colors.danger}; font-weight: bold; font-size: 14px;">▏</span> <span style="font-weight: bold;">Red:</span> Below target (needs more training)
+                    <span style="color: ${colors.danger}; font-weight: bold; font-size: 16px;">|</span> <span style="font-weight: bold;">Red:</span> Below target (needs more training)
                 </div>
             </div>
             <div id="gym-stats-display" style="
@@ -395,9 +421,6 @@
                     #gym-helper-display {
                         padding: 10px !important;
                         margin: 5px 0 !important;
-                    }
-                    .gym-stat-current {
-                        display: none !important;
                     }
                 }
                 @media (max-width: 480px) {
@@ -418,10 +441,6 @@
                         margin-right: 0 !important;
                         z-index: 1010 !important;
                     }
-                    #gym-config-panel > div:nth-child(2) {
-                        grid-template-columns: 1fr !important;
-                        gap: 10px !important;
-                    }
                 }
             </style>
         `;
@@ -429,10 +448,11 @@
         return panel;
     }
 
-    // Create the configuration panel
+    // Create config panel using innerHTML (PDA-compatible) 
     function createConfigPanel() {
         const colors = getThemeColors();
-        
+        const targets = loadTargets();
+
         const configPanel = document.createElement('div');
         configPanel.id = 'gym-config-panel';
         configPanel.style.cssText = `
@@ -450,11 +470,12 @@
             box-shadow: 0 4px 8px rgba(0,0,0,0.15);
         `;
 
-        const targets = loadTargets();
-
         configPanel.innerHTML = `
-            <h4 style="margin: 0 0 15px 0; color: ${colors.textPrimary}; font-size: 16px;">Target Percentages</h4>
-            <div style="display: grid; grid-template-columns: repeat(2, 1fr); gap: 15px;">
+            <div style="display: flex; justify-content: space-between; align-items: baseline; margin-bottom: 15px;">
+                <h4 style="margin: 0; padding: 0; color: ${colors.textPrimary}; font-size: 16px;">Target Percentages</h4>
+                <span id="total-percentage" style="margin: 0; padding: 0; color: ${colors.textSecondary}; font-weight: bold; font-size: 12px;">Total: 100%</span>
+            </div>
+            <div style="display: grid; grid-template-columns: repeat(2, 1fr); gap: 15px; margin-bottom: 15px;">
                 <div>
                     <label style="display: block; margin-bottom: 5px; color: ${colors.textSecondary};">Strength (%)</label>
                     <input type="number" id="target-strength" value="${targets.strength}" min="0" max="100" step="0.1" style="
@@ -504,24 +525,28 @@
                     ">
                 </div>
             </div>
-            <div style="margin-top: 15px; text-align: center;">
-                <span id="total-percentage" style="color: ${colors.textSecondary}; margin-right: 15px;">Total: 100%</span>
+            <div style="display: grid; grid-template-columns: repeat(2, 1fr); gap: 15px;">
                 <button id="save-targets" style="
                     background: ${colors.success};
                     color: white;
                     border: none;
-                    padding: 8px 15px;
+                    padding: 8px 12px;
                     border-radius: 3px;
                     cursor: pointer;
-                    margin-right: 10px;
+                    font-size: 12px;
+                    width: 100%;
+                    box-sizing: border-box;
                 ">Save</button>
                 <button id="cancel-config" style="
                     background: ${colors.danger};
                     color: white;
                     border: none;
-                    padding: 8px 15px;
+                    padding: 8px 12px;
                     border-radius: 3px;
                     cursor: pointer;
+                    font-size: 12px;
+                    width: 100%;
+                    box-sizing: border-box;
                 ">Cancel</button>
             </div>
         `;
@@ -535,78 +560,64 @@
         const collapseBtn = document.getElementById('gym-collapse-btn');
         const configPanel = document.getElementById('gym-config-panel');
         const mainPanel = document.getElementById('gym-helper-display');
-        
+        const header = mainPanel ? mainPanel.querySelector('div:first-child') : null;
+
         if (!statsDisplay || !collapseBtn) return;
-        
+
         const collapsed = isCollapsed();
         const newState = !collapsed;
-        
+
         setCollapsed(newState);
-        
+
         if (newState) {
             // Collapse
             statsDisplay.style.display = 'none';
-            collapseBtn.textContent = '+';
-            collapseBtn.setAttribute('aria-label', 'Expand gym helper');
-            // Also hide config panel if open
+            collapseBtn.innerHTML = '+';
             if (configPanel) configPanel.style.display = 'none';
-            
-            // Enhanced PDA collapse spacing fix
+
+            // Adjust spacing when collapsed for tighter layout
+            if (header) header.style.marginBottom = '2px';
             if (mainPanel) {
-                mainPanel.style.paddingBottom = '5px';
                 if (isTornPDA()) {
-                    // More aggressive PDA-specific fixes - NO height changes
+                    mainPanel.style.padding = '10px 15px 8px 15px';
                     mainPanel.style.marginBottom = '5px';
-                    // Force layout recalculation
-                    mainPanel.offsetHeight;
-                    // Additional PDA-specific style fixes
-                    mainPanel.style.setProperty('padding-bottom', '5px', 'important');
-                    mainPanel.style.setProperty('margin-bottom', '5px', 'important');
+                } else {
+                    mainPanel.style.padding = '10px 15px 8px 15px';
                 }
             }
         } else {
             // Expand
             statsDisplay.style.display = 'grid';
-            collapseBtn.textContent = '−';
-            collapseBtn.setAttribute('aria-label', 'Collapse gym helper');
-            
+            collapseBtn.innerHTML = '&minus;';
+
             // Restore normal spacing when expanded
+            if (header) header.style.marginBottom = '10px';
             if (mainPanel) {
-                mainPanel.style.paddingBottom = '15px';
                 if (isTornPDA()) {
+                    mainPanel.style.padding = '15px';
                     mainPanel.style.marginBottom = '10px';
-                    // Force layout recalculation
-                    mainPanel.offsetHeight;
-                    // Remove important flags for normal state
-                    mainPanel.style.removeProperty('padding-bottom');
-                    mainPanel.style.removeProperty('margin-bottom');
-                    // Re-apply normal values
-                    mainPanel.style.paddingBottom = '15px';
-                    mainPanel.style.marginBottom = '10px';
+                } else {
+                    mainPanel.style.padding = '15px';
                 }
             }
-            // Update stats when expanding
-            updateStatsDisplay();
+            updateStats();
         }
     }
 
     // Apply saved collapse state
     function applySavedCollapseState() {
-        // In TornPDA, always start expanded (no memory)
         if (isTornPDA()) {
             return; // Always start expanded in PDA
         }
-        
-        // Use separate storage for mobile vs desktop to avoid conflicts
+
         if (isCollapsed()) {
             setTimeout(() => {
                 const statsDisplay = document.getElementById('gym-stats-display');
                 const collapseBtn = document.getElementById('gym-collapse-btn');
-                
+
                 if (statsDisplay && collapseBtn) {
                     statsDisplay.style.display = 'none';
-                    collapseBtn.textContent = '+';
-                    collapseBtn.setAttribute('aria-label', 'Expand gym helper');
+                    collapseBtn.innerHTML = '+';
                     const mainPanel = document.getElementById('gym-helper-display');
                     if (mainPanel) mainPanel.style.paddingBottom = '5px';
                 }
@@ -614,27 +625,31 @@
         }
     }
 
-    // Update the stats display
-    function updateStatsDisplay() {
-        // Check for theme changes (piggyback on existing refresh)
-        updateMainContainerTheme();
-        
+    // Update stats display
+    function updateStats() {
+        updateMainContainerTheme(); // Check for theme changes
+
         const stats = getCurrentStats();
-        const currentDist = calculateCurrentDistribution(stats);
+        const dist = calculateCurrentDistribution(stats);
         const targets = loadTargets();
         const colors = getThemeColors();
-        const displayDiv = document.getElementById('gym-stats-display');
 
-        if (!displayDiv) return;
-        
-        // Don't update content if collapsed
-        if (isCollapsed()) return;
+        const statsDiv = document.getElementById('gym-stats-display');
+        if (!statsDiv) return;
+
+        if (isCollapsed()) return; // Don't update if collapsed
+
+        const total = stats.strength + stats.defense + stats.speed + stats.dexterity;
+        if (total === 0) {
+            statsDiv.innerHTML = '<div style="grid-column: 1/-1; text-align: center; color: ' + colors.textSecondary + ';">No stats found. Make sure you\'re on the gym page.</div>';
+            return;
+        }
 
         const statNames = ['strength', 'defense', 'speed', 'dexterity'];
         const statLabels = ['Strength', 'Defense', 'Speed', 'Dexterity'];
 
-        displayDiv.innerHTML = statNames.map((stat, index) => {
-            const current = parseFloat(currentDist[stat]);
+        statsDiv.innerHTML = statNames.map((stat, index) => {
+            const current = parseFloat(dist[stat]);
             const target = targets[stat];
             const diff = current - target;
             const color = Math.abs(diff) <= 1 ? colors.success : (diff > 0 ? colors.warning : colors.danger);
@@ -661,24 +676,26 @@
                 </div>
             `;
         }).join('');
+
+        console.log('Stats updated');
     }
 
-    // Validate and update total percentage in config
+    // Update total percentage in config
     function updateTotalPercentage() {
         const strength = parseFloat(document.getElementById('target-strength').value) || 0;
         const defense = parseFloat(document.getElementById('target-defense').value) || 0;
         const speed = parseFloat(document.getElementById('target-speed').value) || 0;
         const dexterity = parseFloat(document.getElementById('target-dexterity').value) || 0;
-        
+
         const total = strength + defense + speed + dexterity;
         const totalSpan = document.getElementById('total-percentage');
         const colors = getThemeColors();
-        
+
         if (totalSpan) {
-            totalSpan.textContent = `Total: ${total.toFixed(1)}%`;
+            totalSpan.textContent = 'Total: ' + total.toFixed(1) + '%';
             totalSpan.style.color = Math.abs(total - 100) <= 0.1 ? colors.success : colors.danger;
         }
-        
+
         const saveBtn = document.getElementById('save-targets');
         if (saveBtn) {
             saveBtn.disabled = Math.abs(total - 100) > 0.1;
@@ -686,197 +703,146 @@
         }
     }
 
-    // Initialize the script
-    // Initialize the script
-function init() {
-    // Wait for the gym stats to be loaded and ready
-    if (isTornPDA()) {
-        // Use slower method for PDA compatibility
-        waitForElement('.page-head-delimiter', (delimiter) => {
-            // Create and insert the display panel
-            const displayPanel = createDisplayPanel();
-            const configPanel = createConfigPanel();
-            
-            displayPanel.appendChild(configPanel);
-            delimiter.parentNode.insertBefore(displayPanel, delimiter.nextSibling);
+    // SPEED OPTIMIZED INITIALIZATION
+    function initOptimized() {
+        console.log('=== INITIALIZING PDA-FIXED SPEED OPTIMIZED SCRIPT ===');
+        console.log('Platform:', isTornPDA() ? 'PDA' : 'Browser');
+        console.log('URL:', window.location.href);
 
-            // Update initial display
-            updateStatsDisplay();
+        if (isTornPDA()) {
+            console.log('Using PDA-compatible (slower) initialization method');
+            waitForElement('.page-head-delimiter', function(delimiter) {
+                console.log('Found page delimiter, creating panel');
 
-            // Apply saved collapse state after a short delay
-            setTimeout(applySavedCollapseState, 200);
+                const displayPanel = createDisplayPanel();
+                const configPanel = createConfigPanel();
 
-            // Set up event listeners - simple and clean
-            document.getElementById('gym-help-btn').addEventListener('click', () => {
-                const tooltip = document.getElementById('gym-help-tooltip');
-                tooltip.style.display = tooltip.style.display === 'none' ? 'block' : 'none';
-                const configPanel = document.getElementById('gym-config-panel');
-                if (tooltip.style.display === 'block') configPanel.style.display = 'none';
-            });
+                displayPanel.appendChild(configPanel);
+                delimiter.parentNode.insertBefore(displayPanel, delimiter.nextSibling);
 
-            // Add header click to toggle collapse
-            document.getElementById('gym-header-clickable').addEventListener('click', toggleCollapsed);
-            document.getElementById('gym-collapse-btn').addEventListener('click', toggleCollapsed);
+                console.log('Panel inserted, waiting for stats to load');
 
-            document.getElementById('gym-config-btn').addEventListener('click', () => {
-                if (isCollapsed()) {
-                    toggleCollapsed();
-                    setTimeout(() => {
-                        const panel = document.getElementById('gym-config-panel');
-                        if (panel) panel.style.display = 'block';
-                    }, 100);
-                } else {
-                    const panel = document.getElementById('gym-config-panel');
-                    if (panel) {
-                        panel.style.display = panel.style.display === 'none' ? 'block' : 'none';
-                        const tooltip = document.getElementById('gym-help-tooltip');
-                        if (panel.style.display === 'block') tooltip.style.display = 'none';
-                    }
+                setTimeout(function() {
+                    updateStats();
+                    applySavedCollapseState();
+                    setInterval(updateStats, 5000);
+                }, 2000);
+
+                setupEventListeners();
+
+            }, 15000);
+        } else {
+            console.log('Using browser-optimized (faster) initialization method');
+            waitForElement('li[class*="strength___"]', function(strengthEl) {
+                console.log('Found strength element, checking for delimiter');
+
+                const delimiter = document.querySelector('.page-head-delimiter');
+                if (!delimiter) {
+                    console.log('Delimiter not found, retrying in 100ms');
+                    setTimeout(initOptimized, 100);
+                    return;
                 }
-            });
 
-            document.getElementById('cancel-config').addEventListener('click', () => {
-                document.getElementById('gym-config-panel').style.display = 'none';
-            });
+                console.log('Both stats and delimiter found, creating panel');
 
-            document.getElementById('save-targets').addEventListener('click', () => {
-                const targets = {
-                    strength: parseFloat(document.getElementById('target-strength').value),
-                    defense: parseFloat(document.getElementById('target-defense').value),
-                    speed: parseFloat(document.getElementById('target-speed').value),
-                    dexterity: parseFloat(document.getElementById('target-dexterity').value)
-                };
-                
-                saveTargets(targets);
-                updateStatsDisplay();
-                document.getElementById('gym-config-panel').style.display = 'none';
-            });
+                const displayPanel = createDisplayPanel();
+                const configPanel = createConfigPanel();
 
-            // Add input listeners for real-time validation
-            ['target-strength', 'target-defense', 'target-speed', 'target-dexterity'].forEach(id => {
-                document.getElementById(id).addEventListener('input', updateTotalPercentage);
-            });
+                displayPanel.appendChild(configPanel);
+                delimiter.parentNode.insertBefore(displayPanel, delimiter.nextSibling);
 
-            // Initial total percentage update
-            updateTotalPercentage();
+                console.log('Panel inserted, updating stats');
 
-            // Auto-refresh stats display every 5 seconds
-            setInterval(updateStatsDisplay, 5000);
+                updateStats();
+                applySavedCollapseState();
+                setInterval(updateStats, 5000);
 
-            // Close panels when clicking outside
-            document.addEventListener('click', (e) => {
-                const helpBtn = document.getElementById('gym-help-btn');
-                const tooltip = document.getElementById('gym-help-tooltip');
-                const configBtn = document.getElementById('gym-config-btn');
-                const configPanel = document.getElementById('gym-config-panel');
-                
-                if (!helpBtn.contains(e.target) && !tooltip.contains(e.target)) {
-                    tooltip.style.display = 'none';
-                }
-                
-                if (!configBtn.contains(e.target) && !configPanel.contains(e.target)) {
-                    configPanel.style.display = 'none';
-                }
-            });
+                setupEventListeners();
+
+            }, 5000);
+        }
+    }
+
+    // Setup event listeners
+    function setupEventListeners() {
+        // Help button
+        document.getElementById('gym-help-btn').addEventListener('click', () => {
+            const tooltip = document.getElementById('gym-help-tooltip');
+            tooltip.style.display = tooltip.style.display === 'none' ? 'block' : 'none';
+            const configPanel = document.getElementById('gym-config-panel');
+            if (tooltip.style.display === 'block') configPanel.style.display = 'none';
         });
-    } else {
-        // Use faster method for non-PDA
-        waitForElement('li[class*="strength___"]', (strengthEl) => {
-            const delimiter = document.querySelector('.page-head-delimiter');
-            if (!delimiter) {
-                setTimeout(init, 100);
-                return;
-            }
-            
-            // Create and insert the display panel
-            const displayPanel = createDisplayPanel();
-            const configPanel = createConfigPanel();
-            
-            displayPanel.appendChild(configPanel);
-            delimiter.parentNode.insertBefore(displayPanel, delimiter.nextSibling);
 
-            // Update initial display
-            updateStatsDisplay();
+        // Header click and collapse button
+        document.getElementById('gym-header-clickable').addEventListener('click', toggleCollapsed);
+        document.getElementById('gym-collapse-btn').addEventListener('click', toggleCollapsed);
 
-            // Apply saved collapse state after a short delay
-            setTimeout(applySavedCollapseState, 200);
-
-            // Set up event listeners - simple and clean
-            document.getElementById('gym-help-btn').addEventListener('click', () => {
-                const tooltip = document.getElementById('gym-help-tooltip');
-                tooltip.style.display = tooltip.style.display === 'none' ? 'block' : 'none';
-                const configPanel = document.getElementById('gym-config-panel');
-                if (tooltip.style.display === 'block') configPanel.style.display = 'none';
-            });
-
-            // Add header click to toggle collapse
-            document.getElementById('gym-header-clickable').addEventListener('click', toggleCollapsed);
-            document.getElementById('gym-collapse-btn').addEventListener('click', toggleCollapsed);
-
-            document.getElementById('gym-config-btn').addEventListener('click', () => {
-                if (isCollapsed()) {
-                    toggleCollapsed();
-                    setTimeout(() => {
-                        const panel = document.getElementById('gym-config-panel');
-                        if (panel) panel.style.display = 'block';
-                    }, 100);
-                } else {
+        // Config button
+        document.getElementById('gym-config-btn').addEventListener('click', () => {
+            if (isCollapsed()) {
+                toggleCollapsed();
+                setTimeout(() => {
                     const panel = document.getElementById('gym-config-panel');
-                    if (panel) {
-                        panel.style.display = panel.style.display === 'none' ? 'block' : 'none';
-                        const tooltip = document.getElementById('gym-help-tooltip');
-                        if (panel.style.display === 'block') tooltip.style.display = 'none';
-                    }
+                    if (panel) panel.style.display = 'block';
+                }, 100);
+            } else {
+                const panel = document.getElementById('gym-config-panel');
+                if (panel) {
+                    panel.style.display = panel.style.display === 'none' ? 'block' : 'none';
+                    const tooltip = document.getElementById('gym-help-tooltip');
+                    if (panel.style.display === 'block') tooltip.style.display = 'none';
                 }
-            });
+            }
+        });
 
-            document.getElementById('cancel-config').addEventListener('click', () => {
-                document.getElementById('gym-config-panel').style.display = 'none';
-            });
+        // Config panel buttons
+        document.getElementById('cancel-config').addEventListener('click', () => {
+            document.getElementById('gym-config-panel').style.display = 'none';
+        });
 
-            document.getElementById('save-targets').addEventListener('click', () => {
-                const targets = {
-                    strength: parseFloat(document.getElementById('target-strength').value),
-                    defense: parseFloat(document.getElementById('target-defense').value),
-                    speed: parseFloat(document.getElementById('target-speed').value),
-                    dexterity: parseFloat(document.getElementById('target-dexterity').value)
-                };
-                
-                saveTargets(targets);
-                updateStatsDisplay();
-                document.getElementById('gym-config-panel').style.display = 'none';
-            });
+        document.getElementById('save-targets').addEventListener('click', () => {
+            const targets = {
+                strength: parseFloat(document.getElementById('target-strength').value),
+                defense: parseFloat(document.getElementById('target-defense').value),
+                speed: parseFloat(document.getElementById('target-speed').value),
+                dexterity: parseFloat(document.getElementById('target-dexterity').value)
+            };
 
-            // Add input listeners for real-time validation
-            ['target-strength', 'target-defense', 'target-speed', 'target-dexterity'].forEach(id => {
-                document.getElementById(id).addEventListener('input', updateTotalPercentage);
-            });
+            saveTargets(targets);
+            updateStats();
+            document.getElementById('gym-config-panel').style.display = 'none';
+        });
 
-            // Initial total percentage update
-            updateTotalPercentage();
+        // Add input listeners for real-time validation
+        ['target-strength', 'target-defense', 'target-speed', 'target-dexterity'].forEach(id => {
+            document.getElementById(id).addEventListener('input', updateTotalPercentage);
+        });
 
-            // Auto-refresh stats display every 5 seconds
-            setInterval(updateStatsDisplay, 5000);
+        // Initial total percentage update
+        updateTotalPercentage();
 
-            // Close panels when clicking outside
-            document.addEventListener('click', (e) => {
-                const helpBtn = document.getElementById('gym-help-btn');
-                const tooltip = document.getElementById('gym-help-tooltip');
-                const configBtn = document.getElementById('gym-config-btn');
-                const configPanel = document.getElementById('gym-config-panel');
-                
-                if (!helpBtn.contains(e.target) && !tooltip.contains(e.target)) {
-                    tooltip.style.display = 'none';
-                }
-                
-                if (!configBtn.contains(e.target) && !configPanel.contains(e.target)) {
-                    configPanel.style.display = 'none';
-                }
-            });
+        // Close panels when clicking outside
+        document.addEventListener('click', (e) => {
+            const helpBtn = document.getElementById('gym-help-btn');
+            const tooltip = document.getElementById('gym-help-tooltip');
+            const configBtn = document.getElementById('gym-config-btn');
+            const configPanel = document.getElementById('gym-config-panel');
+
+            if (!helpBtn.contains(e.target) && !tooltip.contains(e.target)) {
+                tooltip.style.display = 'none';
+            }
+
+            if (!configBtn.contains(e.target) && !configPanel.contains(e.target)) {
+                configPanel.style.display = 'none';
+            }
         });
     }
-}
 
-    // Start the script
-    init();
+    // Start when DOM is ready
+    if (document.readyState === 'loading') {
+        document.addEventListener('DOMContentLoaded', initOptimized);
+    } else {
+        initOptimized();
+    }
+
 })();
