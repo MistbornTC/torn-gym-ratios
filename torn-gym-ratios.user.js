@@ -353,7 +353,7 @@
                         cursor: pointer;
                         font-size: 12px;
                         margin-right: 5px;
-                        ${!isTornPDA() ? '-webkit-transform: translateZ(0); transform: translateZ(0); -webkit-backface-visibility: hidden; backface-visibility: hidden;' : 'outline: none; -webkit-appearance: none; appearance: none; border: none; position: relative; overflow: hidden;'}
+                        ${(!isTornPDA() && window.innerWidth > 768) ? '-webkit-transform: translateZ(0); transform: translateZ(0); -webkit-backface-visibility: hidden; backface-visibility: hidden;' : 'outline: none; -webkit-appearance: none; appearance: none; border: none; position: relative; overflow: hidden;'}
                     ">&quest;</button>
                     <button id="gym-collapse-btn" style="
                         background: ${colors.neutral};
@@ -364,7 +364,7 @@
                         cursor: pointer;
                         font-size: 12px;
                         margin-right: 5px;
-                        ${!isTornPDA() ? '-webkit-transform: translateZ(0); transform: translateZ(0); -webkit-backface-visibility: hidden; backface-visibility: hidden;' : 'outline: none; -webkit-appearance: none; appearance: none; border: none; position: relative; overflow: hidden;'}
+                        ${(!isTornPDA() && window.innerWidth > 768) ? '-webkit-transform: translateZ(0); transform: translateZ(0); -webkit-backface-visibility: hidden; backface-visibility: hidden;' : 'outline: none; -webkit-appearance: none; appearance: none; border: none; position: relative; overflow: hidden;'}
                     ">&minus;</button>
                     <button id="gym-config-btn" style="
                         background: ${colors.primary};
@@ -374,7 +374,7 @@
                         border-radius: 3px;
                         cursor: pointer;
                         font-size: 12px;
-                        ${!isTornPDA() ? '-webkit-transform: translateZ(0); transform: translateZ(0); -webkit-backface-visibility: hidden; backface-visibility: hidden;' : 'outline: none; -webkit-appearance: none; appearance: none; border: none; position: relative; overflow: hidden;'}
+                        ${(!isTornPDA() && window.innerWidth > 768) ? '-webkit-transform: translateZ(0); transform: translateZ(0); -webkit-backface-visibility: hidden; backface-visibility: hidden;' : 'outline: none; -webkit-appearance: none; appearance: none; border: none; position: relative; overflow: hidden;'}
                     ">Config</button>
                 </div>
             </div>
