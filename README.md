@@ -4,7 +4,7 @@ A Tampermonkey script that helps optimize your gym training in Torn by showing c
 
 ## Features
 - 🎯 Set target percentage for each stat
-- 🌈 Color-coded indicators (Green=on target, Yellow/Orange=above, Red=below)
+- 🌈 Color-coded indicators (Green=on target, Orange=above, Red=below)
 - 📱 Mobile responsive design / PDA compatible
 - 🌙 Dark/Light mode support
 - 💾 Persistent settings
