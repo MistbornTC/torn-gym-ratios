@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Torn Gym Ratios (PDA Compatible)
 // @namespace    http://tampermonkey.net/
-// @version      3.1
+// @version      3.2
 // @description  Gym training helper with target percentages, current distribution display, and optional raw differences
 // @author       Mistborn [3037268]
 // @match        https://www.torn.com/gym.php*
@@ -20,6 +20,29 @@
     'use strict';
 
     console.log('=== TORN GYM RATIOS SCRIPT LOADED ===');
+
+    // Constants for better maintainability
+    const CONSTANTS = {
+        TOLERANCE_PERCENT: 1, // Within 1% tolerance for "on target"
+        UPDATE_INTERVAL: 5000, // 5 seconds
+        THEME_CHECK_INTERVAL_PDA: 500, // 500ms for PDA
+        THEME_CHECK_INTERVAL_BROWSER: 1000, // 1000ms for browser
+        CSS_MONITOR_INTERVAL: 100, // 100ms for CSS property monitoring
+        ELEMENT_IDS: {
+            STATS_DISPLAY: 'gym-stats-display',
+            HELPER_DISPLAY: 'gym-helper-display',
+            HELP_BTN: 'gym-help-btn',
+            COLLAPSE_BTN: 'gym-collapse-btn',
+            CONFIG_BTN: 'gym-config-btn',
+            HELP_TOOLTIP: 'gym-help-tooltip',
+            CONFIG_PANEL: 'gym-config-panel',
+            THEME_DETECTOR: 'gym-theme-detector',
+            TOTAL_PERCENTAGE: 'total-percentage',
+            SAVE_TARGETS: 'save-targets',
+            CANCEL_CONFIG: 'cancel-config',
+            SHOW_STAT_DIFFERENCES: 'show-stat-differences'
+        }
+    };
 
     // Enhanced PDA detection
     function isTornPDA() {
@@ -74,7 +97,7 @@
         }
     }
 
-    // Format numbers with appropriate abbreviations
+    // Format numbers with abbreviations
     function formatNumber(num) {
         if (num < 100000) {
             return num.toLocaleString();
@@ -96,7 +119,7 @@
         const formattedDiff = formatNumber(Math.round(difference));
         const isMobile = window.innerWidth <= 768;
         
-        if (Math.abs(percentageDiff) <= 1) {
+        if (Math.abs(percentageDiff) <= CONSTANTS.TOLERANCE_PERCENT) {
             // Within 1% tolerance - use the same logic as color determination
             const sign = currentValue >= targetValue ? '+' : '-';
             return {
@@ -261,7 +284,7 @@
                 textSecondary: '#6c757d',
                 textMuted: '#adb5bd',
                 success: 'rgb(105, 168, 41)',
-                warning: '#ffc107',
+                warning: '#f0ad4e',
                 danger: '#dc3545',
                 primary: '#007bff',
                 neutral: '#6c757d'
@@ -293,81 +316,289 @@
 
     // Track current theme to detect changes
     let currentTheme = getTheme();
+    let themeObserver = null;
+    let themeCheckInterval = null;
 
-    // Dynamic theme update function
-    function updateMainContainerTheme() {
-        const newTheme = getTheme();
-        if (newTheme !== currentTheme) {
-            currentTheme = newTheme;
-            const colors = getThemeColors();
-            const mainPanel = document.getElementById('gym-helper-display');
+    // Track stats monitoring
+    let statsObserver = null;
+    let statsUpdateInterval = null;
 
-            if (mainPanel) {
-                mainPanel.style.background = colors.panelBg;
-                mainPanel.style.border = '1px solid ' + colors.panelBorder;
-                mainPanel.style.color = colors.textPrimary;
-                mainPanel.style.boxShadow = colors.statBoxShadow;
-
-                // Update title color
-                const title = mainPanel.querySelector('#gym-header-clickable');
-                if (title) title.style.color = colors.textPrimary;
-
-                // Update button colors
-                const helpBtn = document.getElementById('gym-help-btn');
-                const collapseBtn = document.getElementById('gym-collapse-btn');
-                const configBtn = document.getElementById('gym-config-btn');
-                if (helpBtn) helpBtn.style.background = colors.neutral;
-                if (collapseBtn) collapseBtn.style.background = colors.neutral;
-                if (configBtn) configBtn.style.background = colors.primary;
-
-                // Update help tooltip
-                const tooltip = document.getElementById('gym-help-tooltip');
-                if (tooltip) {
-                    tooltip.style.background = colors.statBoxBg;
-                    tooltip.style.border = '1px solid ' + colors.statBoxBorder;
-                    tooltip.style.boxShadow = colors.statBoxShadow;
-
-                    const tooltipElements = tooltip.querySelectorAll('div');
-                    tooltipElements.forEach(el => {
-                        el.style.color = colors.textPrimary;
-                    });
-
-                    // Update the Yellow/Orange text based on theme
-                    const middleDiv = tooltip.children[2];
-                    if (middleDiv) {
-                        const newColorName = newTheme === 'light' ? 'Yellow' : 'Orange';
-                        middleDiv.innerHTML = '<span style="color: ' + colors.warning + '; font-weight: bold; font-size: 16px;">|</span> <span style="font-weight: bold;">' + newColorName + ':</span> Above target (focus on other stats)';
+    // Advanced theme detection with multiple monitoring methods
+    function initAdvancedThemeMonitoring() {
+        // Method 1: MutationObserver for class/style changes
+        if (!isTornPDA() && typeof MutationObserver !== 'undefined') {
+            themeObserver = new MutationObserver((mutations) => {
+                let shouldCheck = false;
+                mutations.forEach((mutation) => {
+                    if (mutation.type === 'attributes' &&
+                        (mutation.attributeName === 'class' ||
+                         mutation.attributeName === 'style' ||
+                         mutation.attributeName === 'data-theme')) {
+                        shouldCheck = true;
                     }
+                });
+                if (shouldCheck) {
+                    checkAndUpdateTheme();
                 }
+            });
 
-                // Update config panel
-                const configPanel = document.getElementById('gym-config-panel');
-                if (configPanel) {
-                    configPanel.style.background = colors.configBg;
-                    configPanel.style.border = '1px solid ' + colors.configBorder;
+            themeObserver.observe(document.body, {
+                attributes: true,
+                attributeFilter: ['class', 'style', 'data-theme'],
+                subtree: false
+            });
 
-                    const configTitle = configPanel.querySelector('h4');
-                    if (configTitle) configTitle.style.color = colors.textPrimary;
+            // Also observe html element for theme changes
+            themeObserver.observe(document.documentElement, {
+                attributes: true,
+                attributeFilter: ['class', 'style', 'data-theme'],
+                subtree: false
+            });
+        }
 
-                    const configLabels = configPanel.querySelectorAll('label');
-                    configLabels.forEach(label => {
-                        label.style.color = colors.textSecondary;
-                    });
+        // Method 2: CSS Custom Property monitoring (for instant updates)
+        if (!isTornPDA()) {
+            try {
+                // Create a test element to monitor CSS custom properties
+                const themeTestEl = document.createElement('div');
+                themeTestEl.id = 'gym-theme-detector';
+                themeTestEl.style.cssText = `
+                    position: absolute;
+                    top: -9999px;
+                    left: -9999px;
+                    width: 1px;
+                    height: 1px;
+                    background: var(--torn-bg-color, rgb(25, 25, 25));
+                    pointer-events: none;
+                    z-index: -1;
+                `;
+                document.body.appendChild(themeTestEl);
 
-                    const configInputs = configPanel.querySelectorAll('input');
-                    configInputs.forEach(input => {
-                        input.style.background = colors.inputBg;
-                        input.style.border = '1px solid ' + colors.inputBorder;
-                        input.style.color = colors.textPrimary;
-                    });
-
-                    const saveBtn = configPanel.querySelector('#save-targets');
-                    const cancelBtn = configPanel.querySelector('#cancel-config');
-                    if (saveBtn) saveBtn.style.background = colors.success;
-                    if (cancelBtn) cancelBtn.style.background = colors.danger;
-                }
+                // Monitor background color changes
+                let lastBgColor = getComputedStyle(themeTestEl).backgroundColor;
+                setInterval(() => {
+                    const currentBgColor = getComputedStyle(themeTestEl).backgroundColor;
+                    if (currentBgColor !== lastBgColor) {
+                        lastBgColor = currentBgColor;
+                        checkAndUpdateTheme();
+                    }
+                }, CONSTANTS.CSS_MONITOR_INTERVAL);
+            } catch (e) {
+                console.log('CSS monitoring fallback failed, using standard detection');
             }
         }
+
+        // Method 3: Enhanced interval checking (fallback for PDA)
+        const checkFrequency = isTornPDA() ? CONSTANTS.THEME_CHECK_INTERVAL_PDA : CONSTANTS.THEME_CHECK_INTERVAL_BROWSER;
+        themeCheckInterval = setInterval(checkAndUpdateTheme, checkFrequency);
+
+        // Method 4: Event listeners for common theme switching scenarios
+        if (!isTornPDA()) {
+            ['focus', 'blur', 'visibilitychange'].forEach(event => {
+                document.addEventListener(event, () => {
+                    setTimeout(checkAndUpdateTheme, 50);
+                });
+            });
+        }
+    }
+
+    // Optimized theme check and update function
+    function checkAndUpdateTheme() {
+        const newTheme = getTheme();
+        if (newTheme !== currentTheme) {
+            console.log('Theme changed from', currentTheme, 'to', newTheme);
+            currentTheme = newTheme;
+            updateMainContainerTheme();
+            updateStats(); // Refresh stats display with new theme
+        }
+    }
+
+    // Dynamic theme update function with CSS custom properties
+    function updateMainContainerTheme() {
+        const colors = getThemeColors();
+        const mainPanel = document.getElementById('gym-helper-display');
+
+        if (!mainPanel) return;
+
+        // Set CSS custom properties for instant theme switching
+        const rootStyle = document.documentElement.style;
+        const customProps = {
+            '--gym-panel-bg': colors.panelBg,
+            '--gym-panel-border': colors.panelBorder,
+            '--gym-text-primary': colors.textPrimary,
+            '--gym-text-secondary': colors.textSecondary,
+            '--gym-text-muted': colors.textMuted,
+            '--gym-stat-box-bg': colors.statBoxBg,
+            '--gym-stat-box-border': colors.statBoxBorder,
+            '--gym-stat-box-shadow': colors.statBoxShadow,
+            '--gym-input-bg': colors.inputBg,
+            '--gym-input-border': colors.inputBorder,
+            '--gym-success': colors.success,
+            '--gym-warning': colors.warning,
+            '--gym-danger': colors.danger,
+            '--gym-primary': colors.primary,
+            '--gym-neutral': colors.neutral
+        };
+
+        // Apply all custom properties at once
+        Object.entries(customProps).forEach(([prop, value]) => {
+            rootStyle.setProperty(prop, value);
+        });
+
+        // Update main panel styles
+        mainPanel.style.background = colors.panelBg;
+        mainPanel.style.border = '1px solid ' + colors.panelBorder;
+        mainPanel.style.color = colors.textPrimary;
+        mainPanel.style.boxShadow = colors.statBoxShadow;
+
+        // Update title color
+        const title = mainPanel.querySelector('#gym-header-clickable');
+        if (title) title.style.color = colors.textPrimary;
+
+        // Cache elements for better performance
+        const elements = {
+            helpBtn: document.getElementById('gym-help-btn'),
+            collapseBtn: document.getElementById('gym-collapse-btn'),
+            configBtn: document.getElementById('gym-config-btn'),
+            tooltip: document.getElementById('gym-help-tooltip'),
+            configPanel: document.getElementById('gym-config-panel')
+        };
+
+        // Update button colors
+        if (elements.helpBtn) elements.helpBtn.style.background = colors.neutral;
+        if (elements.collapseBtn) elements.collapseBtn.style.background = colors.neutral;
+        if (elements.configBtn) elements.configBtn.style.background = colors.primary;
+
+        // Update help tooltip
+        if (elements.tooltip) {
+            elements.tooltip.style.background = colors.statBoxBg;
+            elements.tooltip.style.border = '1px solid ' + colors.statBoxBorder;
+            elements.tooltip.style.boxShadow = colors.statBoxShadow;
+
+            const tooltipElements = elements.tooltip.querySelectorAll('div');
+            tooltipElements.forEach(el => {
+                el.style.color = colors.textPrimary;
+            });
+
+            // Update the warning color text
+            const middleDiv = elements.tooltip.children[2];
+            if (middleDiv) {
+                middleDiv.innerHTML = '<span style="color: ' + colors.warning + '; font-weight: bold; font-size: 16px;">|</span> <span style="font-weight: bold;">Orange:</span> Above target (focus on other stats)';
+            }
+        }
+
+        // Update config panel
+        if (elements.configPanel) {
+            elements.configPanel.style.background = colors.configBg;
+            elements.configPanel.style.border = '1px solid ' + colors.configBorder;
+
+            const configTitle = elements.configPanel.querySelector('h4');
+            if (configTitle) configTitle.style.color = colors.textPrimary;
+
+            const configLabels = elements.configPanel.querySelectorAll('label');
+            configLabels.forEach(label => {
+                label.style.color = colors.textSecondary;
+            });
+
+            const configInputs = elements.configPanel.querySelectorAll('input');
+            configInputs.forEach(input => {
+                input.style.background = colors.inputBg;
+                input.style.border = '1px solid ' + colors.inputBorder;
+                input.style.color = colors.textPrimary;
+            });
+
+            const saveBtn = elements.configPanel.querySelector('#save-targets');
+            const cancelBtn = elements.configPanel.querySelector('#cancel-config');
+            if (saveBtn) saveBtn.style.background = colors.success;
+            if (cancelBtn) cancelBtn.style.background = colors.danger;
+        }
+    }
+
+    // Advanced stats monitoring for performance optimization
+    function initStatsMonitoring() {
+        // Method 1: MutationObserver for stat value changes (browser only)
+        if (!isTornPDA() && typeof MutationObserver !== 'undefined') {
+            statsObserver = new MutationObserver((mutations) => {
+                let shouldUpdate = false;
+                mutations.forEach((mutation) => {
+                    // Check if any stat-related elements changed
+                    if (mutation.type === 'childList' ||
+                        (mutation.type === 'attributes' && mutation.attributeName === 'data-value') ||
+                        (mutation.type === 'characterData')) {
+                        const target = mutation.target;
+                        const container = target.closest ? target.closest('li[class*="strength___"], li[class*="defense___"], li[class*="speed___"], li[class*="dexterity___"]') : null;
+                        if (container || target.classList?.contains('propertyValue') || target.className?.includes('propertyValue')) {
+                            shouldUpdate = true;
+                        }
+                    }
+                });
+
+                if (shouldUpdate) {
+                    console.log('Stats changed detected, updating display');
+                    updateStats();
+                }
+            });
+
+            // Observe the entire gym page for stat changes
+            const gymContainer = document.querySelector('.content-wrapper') || document.body;
+            if (gymContainer) {
+                statsObserver.observe(gymContainer, {
+                    childList: true,
+                    subtree: true,
+                    attributes: true,
+                    attributeFilter: ['data-value', 'class'],
+                    characterData: true
+                });
+                console.log('Stats MutationObserver initialized');
+            }
+        }
+
+        // Method 2: Fallback polling for PDA or when MutationObserver isn't available
+        if (isTornPDA() || !statsObserver) {
+            console.log('Using fallback polling for stats monitoring');
+            const pollInterval = isTornPDA() ? 3000 : 10000; // More frequent for PDA, less for browser fallback
+            statsUpdateInterval = setInterval(() => {
+                updateStats();
+            }, pollInterval);
+        } else {
+            console.log('Using MutationObserver for efficient stats monitoring');
+        }
+
+        // Initial update
+        updateStats();
+    }
+
+    // Cleanup functions
+    function cleanupStatsMonitoring() {
+        if (statsObserver) {
+            statsObserver.disconnect();
+            statsObserver = null;
+        }
+        if (statsUpdateInterval) {
+            clearInterval(statsUpdateInterval);
+            statsUpdateInterval = null;
+        }
+    }
+
+    function cleanupThemeMonitoring() {
+        if (themeObserver) {
+            themeObserver.disconnect();
+            themeObserver = null;
+        }
+        if (themeCheckInterval) {
+            clearInterval(themeCheckInterval);
+            themeCheckInterval = null;
+        }
+        const themeTestEl = document.getElementById('gym-theme-detector');
+        if (themeTestEl) {
+            themeTestEl.remove();
+        }
+    }
+
+    // Master cleanup function
+    function cleanupAllMonitoring() {
+        cleanupStatsMonitoring();
+        cleanupThemeMonitoring();
     }
 
     // Create the main display panel using innerHTML (PDA-compatible)
@@ -453,7 +684,7 @@
                     <span style="color: ${colors.success}; font-weight: bold; font-size: 16px;">|</span> <span style="font-weight: bold;">Green:</span> On target (within &plusmn;1% of target)
                 </div>
                 <div style="margin-bottom: 6px; color: ${colors.textPrimary};">
-                    <span style="color: ${colors.warning}; font-weight: bold; font-size: 16px;">|</span> <span style="font-weight: bold;">${getTheme() === 'light' ? 'Yellow' : 'Orange'}:</span> Above target (focus on other stats)
+                    <span style="color: ${colors.warning}; font-weight: bold; font-size: 16px;">|</span> <span style="font-weight: bold;">Orange:</span> Above target (focus on other stats)
                 </div>
                 <div style="color: ${colors.textPrimary};">
                     <span style="color: ${colors.danger}; font-weight: bold; font-size: 16px;">|</span> <span style="font-weight: bold;">Red:</span> Below target (needs more training)
@@ -466,6 +697,90 @@
                 font-size: 13px;
             "></div>
             <style>
+                /* CSS Custom Properties for instant theme switching */
+                :root {
+                    --gym-panel-bg: ${colors.panelBg};
+                    --gym-panel-border: ${colors.panelBorder};
+                    --gym-text-primary: ${colors.textPrimary};
+                    --gym-text-secondary: ${colors.textSecondary};
+                    --gym-text-muted: ${colors.textMuted};
+                    --gym-stat-box-bg: ${colors.statBoxBg};
+                    --gym-stat-box-border: ${colors.statBoxBorder};
+                    --gym-stat-box-shadow: ${colors.statBoxShadow};
+                    --gym-input-bg: ${colors.inputBg};
+                    --gym-input-border: ${colors.inputBorder};
+                    --gym-success: ${colors.success};
+                    --gym-warning: ${colors.warning};
+                    --gym-danger: ${colors.danger};
+                    --gym-primary: ${colors.primary};
+                    --gym-neutral: ${colors.neutral};
+                }
+
+                /* Instant theme switching classes */
+                #gym-helper-display {
+                    background: var(--gym-panel-bg) !important;
+                    border-color: var(--gym-panel-border) !important;
+                    color: var(--gym-text-primary) !important;
+                    box-shadow: var(--gym-stat-box-shadow) !important;
+                    transition: background-color 0.1s ease, border-color 0.1s ease, color 0.1s ease !important;
+                }
+
+                #gym-header-clickable {
+                    color: var(--gym-text-primary) !important;
+                    transition: color 0.1s ease !important;
+                }
+
+                #gym-help-btn, #gym-collapse-btn {
+                    background: var(--gym-neutral) !important;
+                    transition: background-color 0.1s ease !important;
+                }
+
+                #gym-config-btn {
+                    background: var(--gym-primary) !important;
+                    transition: background-color 0.1s ease !important;
+                }
+
+                #gym-help-tooltip {
+                    background: var(--gym-stat-box-bg) !important;
+                    border-color: var(--gym-stat-box-border) !important;
+                    box-shadow: var(--gym-stat-box-shadow) !important;
+                    transition: background-color 0.1s ease, border-color 0.1s ease !important;
+                }
+
+                #gym-config-panel {
+                    background: var(--gym-stat-box-bg) !important;
+                    border-color: var(--gym-stat-box-border) !important;
+                    transition: background-color 0.1s ease, border-color 0.1s ease !important;
+                }
+
+                #gym-config-panel h4 {
+                    color: var(--gym-text-primary) !important;
+                    transition: color 0.1s ease !important;
+                }
+
+                #gym-config-panel label {
+                    color: var(--gym-text-secondary) !important;
+                    transition: color 0.1s ease !important;
+                }
+
+                #gym-config-panel input {
+                    background: var(--gym-input-bg) !important;
+                    border-color: var(--gym-input-border) !important;
+                    color: var(--gym-text-primary) !important;
+                    transition: background-color 0.1s ease, border-color 0.1s ease, color 0.1s ease !important;
+                }
+
+                #save-targets {
+                    background: var(--gym-success) !important;
+                    transition: background-color 0.1s ease !important;
+                }
+
+                #cancel-config {
+                    background: var(--gym-danger) !important;
+                    transition: background-color 0.1s ease !important;
+                }
+
+                /* Responsive design */
                 @media (max-width: 768px) {
                     #gym-stats-display {
                         grid-template-columns: repeat(2, 1fr) !important;
@@ -694,8 +1009,6 @@
 
     // Update stats display
     function updateStats() {
-        updateMainContainerTheme(); // Check for theme changes
-
         const stats = getCurrentStats();
         const dist = calculateCurrentDistribution(stats);
         const targets = loadTargets();
@@ -720,7 +1033,7 @@
             const current = parseFloat(dist[stat]);
             const target = targets[stat];
             const diff = current - target;
-            const color = Math.abs(diff) <= 1 ? colors.success : (diff > 0 ? colors.warning : colors.danger);
+            const color = Math.abs(diff) <= CONSTANTS.TOLERANCE_PERCENT ? colors.success : (diff > 0 ? colors.warning : colors.danger);
 
             let additionalContent = '';
             if (showStatDifferences) {
@@ -771,14 +1084,20 @@
         console.log('Stats updated' + (showStatDifferences ? ' with differences' : ''));
     }
 
+    // Get all target input values as object
+    function getTargetValues() {
+        return {
+            strength: parseFloat(document.getElementById('target-strength').value) || 0,
+            defense: parseFloat(document.getElementById('target-defense').value) || 0,
+            speed: parseFloat(document.getElementById('target-speed').value) || 0,
+            dexterity: parseFloat(document.getElementById('target-dexterity').value) || 0
+        };
+    }
+
     // Update total percentage in config
     function updateTotalPercentage() {
-        const strength = parseFloat(document.getElementById('target-strength').value) || 0;
-        const defense = parseFloat(document.getElementById('target-defense').value) || 0;
-        const speed = parseFloat(document.getElementById('target-speed').value) || 0;
-        const dexterity = parseFloat(document.getElementById('target-dexterity').value) || 0;
-
-        const total = strength + defense + speed + dexterity;
+        const targets = getTargetValues();
+        const total = targets.strength + targets.defense + targets.speed + targets.dexterity;
         const totalSpan = document.getElementById('total-percentage');
         const colors = getThemeColors();
 
@@ -814,9 +1133,9 @@
                 console.log('Panel inserted, waiting for stats to load');
 
                 setTimeout(function() {
-                    updateStats();
                     applySavedCollapseState();
-                    setInterval(updateStats, 5000);
+                    initAdvancedThemeMonitoring();
+                    initStatsMonitoring();
                 }, 2000);
 
                 setupEventListeners();
@@ -844,9 +1163,9 @@
 
                 console.log('Panel inserted, updating stats');
 
-                updateStats();
                 applySavedCollapseState();
-                setInterval(updateStats, 5000);
+                initAdvancedThemeMonitoring();
+                initStatsMonitoring();
 
                 setupEventListeners();
 
@@ -892,13 +1211,7 @@
         });
 
         document.getElementById('save-targets').addEventListener('click', () => {
-            const targets = {
-                strength: parseFloat(document.getElementById('target-strength').value),
-                defense: parseFloat(document.getElementById('target-defense').value),
-                speed: parseFloat(document.getElementById('target-speed').value),
-                dexterity: parseFloat(document.getElementById('target-dexterity').value)
-            };
-
+            const targets = getTargetValues();
             const showStatDifferences = document.getElementById('show-stat-differences').checked;
 
             saveTargets(targets);
@@ -909,11 +1222,18 @@
 
         // Add input listeners for real-time validation
         ['target-strength', 'target-defense', 'target-speed', 'target-dexterity'].forEach(id => {
-            document.getElementById(id).addEventListener('input', updateTotalPercentage);
+            const element = document.getElementById(id);
+            if (element) element.addEventListener('input', updateTotalPercentage);
         });
 
         // Initial total percentage update
         updateTotalPercentage();
+
+        // Cleanup on page unload
+        if (!isTornPDA()) {
+            window.addEventListener('beforeunload', cleanupAllMonitoring);
+            window.addEventListener('unload', cleanupAllMonitoring);
+        }
 
         // Close panels when clicking outside
         document.addEventListener('click', (e) => {
